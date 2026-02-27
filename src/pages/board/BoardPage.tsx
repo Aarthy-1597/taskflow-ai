@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus } from 'lucide-react';
 
 const columns: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done'];
@@ -225,7 +224,7 @@ function CreateTaskForm({
 
   return (
     <>
-      <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+      <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Project</label>
@@ -282,7 +281,7 @@ function CreateTaskForm({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">Assignees</label>
-            <ScrollArea className="h-40 rounded-md border border-border">
+            <div className="rounded-md border border-border">
               <div className="p-3 space-y-2">
                 {teamMembers.map(m => (
                   <button
@@ -299,12 +298,12 @@ function CreateTaskForm({
                   </button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">Blocked by (optional)</label>
-            <ScrollArea className="h-40 rounded-md border border-border">
+            <div className="rounded-md border border-border">
               <div className="p-3 space-y-2">
                 {blockerCandidates.length === 0 && (
                   <div className="text-xs text-muted-foreground">No tasks available.</div>
@@ -324,7 +323,7 @@ function CreateTaskForm({
                   </button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </div>
 

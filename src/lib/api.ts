@@ -2,6 +2,82 @@ import type { Project, Task, TeamMember } from "@/data/types";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+function toProjectModel(p: any): Project {
+  return {
+    id: String(p?._id ?? p?.id ?? ""),
+    name: String(p?.name ?? ""),
+    description: String(p?.description ?? ""),
+    status: (String(p?.status ?? "active").toLowerCase().replace(" ", "_") as Project["status"]),
+    color: String(p?.color ?? "#4F46E5"),
+    startDate:
+      (p?.start_date ?? p?.startDate ?? new Date()).toISOString?.().slice(0, 10) ??
+      String(p?.start_date ?? p?.startDate ?? ""),
+    dueDate:
+      (p?.end_date ?? p?.dueDate ?? "").toISOString?.().slice(0, 10) ??
+      String(p?.end_date ?? p?.dueDate ?? ""),
+    members: Array.isArray(p?.team_members)
+      ? p.team_members.map((m: any) => String(m?._id ?? m?.id ?? m))
+      : Array.isArray(p?.members)
+      ? p.members.map((id: any) => String(id))
+      : [],
+    progress: typeof p?.task_count === "number" ? p.task_count : typeof p?.progress === "number" ? p.progress : 0,
+  };
+}
+
+function toTaskModel(t: any, fallbackProjectId?: string): Task {
+  const rawStatus = String(t?.status ?? "todo").toLowerCase().replace(/[\s-]+/g, "_");
+  const status: Task["status"] =
+    rawStatus === "to_do" || rawStatus === "todo"
+      ? "todo"
+      : rawStatus === "in_progress"
+      ? "in_progress"
+      : rawStatus === "in_review"
+      ? "in_review"
+      : rawStatus === "done"
+      ? "done"
+      : "todo";
+
+  return {
+    id: String(t?._id ?? t?.id ?? ""),
+    title: String(t?.title ?? ""),
+    description: String(t?.description ?? ""),
+    status,
+    priority: (String(t?.priority ?? "medium").toLowerCase() as Task["priority"]),
+    assignees: Array.isArray(t?.assignees)
+      ? t.assignees.map((a: any) => String(a?._id ?? a?.id ?? a))
+      : [],
+    projectId: String(t?.project_id ?? t?.projectId ?? fallbackProjectId ?? ""),
+    dueDate:
+      (t?.due_date ?? t?.dueDate ?? "").toISOString?.().slice(0, 10) ??
+      String(t?.due_date ?? t?.dueDate ?? ""),
+    labels: Array.isArray(t?.labels) ? t.labels.map((x: any) => String(x)) : [],
+    attachments: [],
+    subtasks: [],
+    blockedBy: Array.isArray(t?.blocked_by)
+      ? t.blocked_by.map((b: any) => String(b?._id ?? b?.id ?? b))
+      : Array.isArray(t?.blockedBy)
+      ? t.blockedBy.map((id: any) => String(id))
+      : [],
+    commentCount: typeof t?.commentCount === "number" ? t.commentCount : 0,
+    order: typeof t?.order === "number" ? t.order : 0,
+  };
+}
+
+function toApiTaskStatus(status?: Task["status"]): string {
+  switch (status) {
+    case "todo":
+      return "To Do";
+    case "in_progress":
+      return "In Progress";
+    case "in_review":
+      return "In Review";
+    case "done":
+      return "Done";
+    default:
+      return "To Do";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!API_URL) {
     throw new Error("VITE_API_URL is not configured");
@@ -54,47 +130,10 @@ export async function fetchInitialBoardData() {
     request<any>("/api/users"),
   ]);
 
-  const projects = (Array.isArray(projectsRaw) ? projectsRaw : projectsRaw.projects ?? []).map(
-    (p: any): Project => ({
-      id: String(p._id ?? p.id ?? ""),
-      name: String(p.name ?? ""),
-      description: String(p.description ?? ""),
-      status: (String(p.status ?? "active").toLowerCase().replace(" ", "_") as Project["status"]),
-      color: String(p.color ?? "#4F46E5"),
-      startDate: (p.start_date ?? p.startDate ?? new Date()).toISOString?.().slice(0, 10) ?? String(p.start_date ?? p.startDate ?? ""),
-      dueDate: (p.end_date ?? p.dueDate ?? "").toISOString?.().slice(0, 10) ?? String(p.end_date ?? p.dueDate ?? ""),
-      members: Array.isArray(p.team_members)
-        ? p.team_members.map((m: any) => String(m._id ?? m.id ?? m))
-        : Array.isArray(p.members)
-        ? p.members.map((id: any) => String(id))
-        : [],
-      progress: typeof p.task_count === "number" ? p.task_count : typeof p.progress === "number" ? p.progress : 0,
-    })
-  );
+  const projects = (Array.isArray(projectsRaw) ? projectsRaw : projectsRaw.projects ?? []).map(toProjectModel);
 
-  const tasks = (Array.isArray(tasksRaw) ? tasksRaw : tasksRaw.tasks ?? []).map(
-    (t: any): Task => ({
-      id: String(t._id ?? t.id ?? ""),
-      title: String(t.title ?? ""),
-      description: String(t.description ?? ""),
-      status: (String(t.status ?? "todo").toLowerCase().replace(" ", "_") as Task["status"]),
-      priority: (String(t.priority ?? "medium").toLowerCase() as Task["priority"]),
-      assignees: Array.isArray(t.assignees)
-        ? t.assignees.map((a: any) => String(a._id ?? a.id ?? a))
-        : [],
-      projectId: String(t.project_id ?? t.projectId ?? ""),
-      dueDate: (t.due_date ?? t.dueDate ?? "").toISOString?.().slice(0, 10) ?? String(t.due_date ?? t.dueDate ?? ""),
-      labels: Array.isArray(t.labels) ? t.labels.map((x: any) => String(x)) : [],
-      attachments: [],
-      subtasks: [],
-      blockedBy: Array.isArray(t.blocked_by)
-        ? t.blocked_by.map((b: any) => String(b._id ?? b.id ?? b))
-        : Array.isArray(t.blockedBy)
-        ? t.blockedBy.map((id: any) => String(id))
-        : [],
-      commentCount: typeof t.commentCount === "number" ? t.commentCount : 0,
-      order: typeof t.order === "number" ? t.order : 0,
-    })
+  const tasks = (Array.isArray(tasksRaw) ? tasksRaw : tasksRaw.tasks ?? []).map((t: any) =>
+    toTaskModel(t)
   );
 
   const users = (Array.isArray(usersRaw) ? usersRaw : usersRaw.users ?? []).map(
@@ -116,17 +155,41 @@ export async function fetchInitialBoardData() {
 }
 
 export async function apiCreateProject(body: Partial<Project>): Promise<Project> {
-  return request<Project>("/api/projects", {
+  const apiBody: Record<string, unknown> = {
+    name: body.name,
+    description: body.description,
+    status: body.status
+      ? String(body.status).replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : "Active",
+    color: body.color,
+    start_date: body.startDate || undefined,
+    end_date: body.dueDate || undefined,
+    team_members: body.members ?? [],
+  };
+  const res = await request<{ project?: any } | any>("/api/projects", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(apiBody),
   });
+  return toProjectModel(res.project ?? res);
 }
 
 export async function apiUpdateProject(id: string, body: Partial<Project>): Promise<Project> {
-  return request<Project>(`/api/projects/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(body),
+  const apiBody: Record<string, unknown> = {
+    ...(body.name !== undefined ? { name: body.name } : {}),
+    ...(body.description !== undefined ? { description: body.description } : {}),
+    ...(body.status !== undefined
+      ? { status: String(body.status).replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()) }
+      : {}),
+    ...(body.color !== undefined ? { color: body.color } : {}),
+    ...(body.startDate !== undefined ? { start_date: body.startDate } : {}),
+    ...(body.dueDate !== undefined ? { end_date: body.dueDate } : {}),
+    ...(body.members !== undefined ? { team_members: body.members } : {}),
+  };
+  const res = await request<{ project?: any } | any>(`/api/projects/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(apiBody),
   });
+  return toProjectModel(res.project ?? res);
 }
 
 export async function apiDeleteProject(id: string): Promise<void> {
@@ -141,11 +204,7 @@ export async function apiCreateTask(body: Partial<Task>): Promise<Task> {
   const apiBody: Record<string, unknown> = {
     title: body.title,
     description: body.description,
-    status: body.status
-      ? String(body.status)
-          .replace("_", " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase())
-      : "To Do",
+    status: toApiTaskStatus(body.status as Task["status"] | undefined),
     priority: body.priority
       ? String(body.priority).charAt(0).toUpperCase() + String(body.priority).slice(1)
       : "Medium",
@@ -163,34 +222,30 @@ export async function apiCreateTask(body: Partial<Task>): Promise<Task> {
 
   const t = res.task ?? res;
 
-  return {
-    id: String(t._id ?? t.id ?? ""),
-    title: String(t.title ?? ""),
-    description: String(t.description ?? ""),
-    status: (String(t.status ?? "todo").toLowerCase().replace(" ", "_") as Task["status"]),
-    priority: (String(t.priority ?? "medium").toLowerCase() as Task["priority"]),
-    assignees: Array.isArray(t.assignees)
-      ? t.assignees.map((a: any) => String(a._id ?? a.id ?? a))
-      : [],
-    projectId: String(t.project_id ?? t.projectId ?? body.projectId),
-    dueDate: (t.due_date ?? t.dueDate ?? body.dueDate ?? "").toISOString?.().slice(0, 10) ??
-      String(t.due_date ?? t.dueDate ?? body.dueDate ?? ""),
-    labels: Array.isArray(t.labels) ? t.labels.map((x: any) => String(x)) : body.labels ?? [],
-    attachments: [],
-    subtasks: [],
-    blockedBy: Array.isArray(t.blocked_by)
-      ? t.blocked_by.map((b: any) => String(b._id ?? b.id ?? b))
-      : body.blockedBy ?? [],
-    commentCount: typeof t.commentCount === "number" ? t.commentCount : body.commentCount ?? 0,
-    order: typeof t.order === "number" ? t.order : body.order ?? 0,
-  };
+  return toTaskModel(t, body.projectId);
 }
 
 export async function apiUpdateTask(id: string, body: Partial<Task>): Promise<Task> {
-  return request<Task>(`/api/tasks/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(body),
+  const apiBody: Record<string, unknown> = {
+    ...(body.title !== undefined ? { title: body.title } : {}),
+    ...(body.description !== undefined ? { description: body.description } : {}),
+    ...(body.status !== undefined
+      ? { status: toApiTaskStatus(body.status as Task["status"]) }
+      : {}),
+    ...(body.priority !== undefined
+      ? { priority: String(body.priority).charAt(0).toUpperCase() + String(body.priority).slice(1) }
+      : {}),
+    ...(body.assignees !== undefined ? { assignees: body.assignees } : {}),
+    ...(body.dueDate !== undefined ? { due_date: body.dueDate } : {}),
+    ...(body.labels !== undefined ? { labels: body.labels } : {}),
+    ...(body.blockedBy !== undefined ? { blocked_by: body.blockedBy } : {}),
+    ...(body.order !== undefined ? { order: body.order } : {}),
+  };
+  const res = await request<{ task?: any } | any>(`/api/tasks/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(apiBody),
   });
+  return toTaskModel(res.task ?? res, body.projectId);
 }
 
 export async function apiDeleteTask(id: string): Promise<void> {
