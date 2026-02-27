@@ -1,8 +1,10 @@
-import { useState, createContext, useContext, ReactNode, useEffect } from 'react';
+import { useState, createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, TeamMember, TaskAttachment, Subtask } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
 import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, fetchInitialBoardData } from '@/lib/api';
+import * as timeEntriesApi from '@/api/timeEntries';
+import { toast } from 'sonner';
 
 export interface User {
   name: string;
@@ -22,6 +24,7 @@ interface AppState {
   selectedProjectId: string | null;
   theme: ThemeMode;
   user: User | null;
+  currentUserId: string;
   setTasks: (tasks: Task[]) => void;
   setProjects: (projects: Project[]) => void;
   setTeamMembers: (members: TeamMember[]) => void;
@@ -43,6 +46,10 @@ interface AppState {
   addNote: (note: Note) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
+  addTimeEntry: (entry: Omit<TimeEntry, 'id'> | TimeEntry) => void;
+  updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
+  deleteTimeEntry: (id: string) => void;
+  refreshTimeEntries: (params?: timeEntriesApi.ListTimeEntriesParams) => Promise<void>;
   setTheme: (theme: ThemeMode) => void;
   setUser: (user: User | null) => void;
 }
@@ -164,7 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = safeJsonParse<TeamMember[]>(typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.team) : null);
     return stored && Array.isArray(stored) ? stored : initialTeamMembers;
   });
-  const [timeEntries] = useState<TimeEntry[]>(initialTimeEntries);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(initialTimeEntries);
   const [automationRules] = useState<AutomationRule[]>(initialRules);
   const [activities] = useState<Activity[]>(initialActivities);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
@@ -329,6 +336,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   const deleteNote = (id: string) => setNotes(prev => prev.filter(n => n.id !== id));
 
+  const refreshTimeEntries = useCallback(async (params?: timeEntriesApi.ListTimeEntriesParams) => {
+    try {
+      const entries = await timeEntriesApi.listTimeEntries(params);
+      setTimeEntries(entries);
+    } catch {
+      // Keep existing state on API failure (e.g. backend not running)
+    }
+  }, []);
+
+  const addTimeEntry = (entry: Omit<TimeEntry, 'id'> | TimeEntry) => {
+    const hasId = 'id' in entry && entry.id;
+    if (hasId) {
+      setTimeEntries(prev => [entry as TimeEntry, ...prev]);
+      return;
+    }
+    const e = entry as Omit<TimeEntry, 'id'>;
+    const task = tasks.find(t => t.id === e.taskId);
+    timeEntriesApi.createTimeEntry({
+      task_id: e.taskId,
+      user_id: e.userId,
+      project_id: task?.projectId ?? '',
+      hours: e.hours,
+      date: e.date,
+      description: e.description,
+      billable: e.billable,
+    }).then(created => {
+      setTimeEntries(prev => [created, ...prev]);
+    }).catch(() => {
+      toast.info('Saved locally (API unavailable)');
+      const id = 'te' + Date.now();
+      setTimeEntries(prev => [{ ...e, id }, ...prev]);
+    });
+  };
+
+  const updateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
+    const body: Record<string, unknown> = {};
+    if (updates.taskId !== undefined) body.task_id = updates.taskId;
+    if (updates.userId !== undefined) body.user_id = updates.userId;
+    if (updates.hours !== undefined) body.hours = updates.hours;
+    if (updates.date !== undefined) body.date = updates.date;
+    if (updates.description !== undefined) body.description = updates.description;
+    if (updates.billable !== undefined) body.billable = updates.billable;
+    timeEntriesApi.updateTimeEntry(id, body).then(updated => {
+      setTimeEntries(prev => prev.map(e => e.id === id ? updated : e));
+    }).catch(() => {
+      toast.info('Updated locally (API unavailable)');
+      setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    });
+  };
+
+  const deleteTimeEntry = (id: string) => {
+    timeEntriesApi.deleteTimeEntryApi(id).then(() => {
+      setTimeEntries(prev => prev.filter(e => e.id !== id));
+    }).catch(() => {
+      setTimeEntries(prev => prev.filter(e => e.id !== id));
+    });
+  };
+
   const setTheme = (t: ThemeMode) => {
     applyTheme(t);
     setThemeState(t);
@@ -381,15 +446,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      tasks, projects, teamMembers, timeEntries, automationRules, activities, notes,
-      selectedProjectId, theme, user,
-      setTasks, setProjects, setTeamMembers,
-      createProject, updateProject, deleteProject,
-      createTask, updateTask, deleteTask,
-      addTaskAttachment, removeTaskAttachment, downloadTaskAttachment,
-      addSubtask, toggleSubtask, deleteSubtask, setTaskBlockedBy,
-      setSelectedProjectId, getTeamMember,
-      addNote, updateNote, deleteNote, setTheme, setUser
+      tasks,
+      projects,
+      teamMembers,
+      timeEntries,
+      automationRules,
+      activities,
+      notes,
+      selectedProjectId,
+      theme,
+      user,
+      currentUserId: '1',
+      setTasks,
+      setProjects,
+      setTeamMembers,
+      createProject,
+      updateProject,
+      deleteProject,
+      createTask,
+      updateTask,
+      deleteTask,
+      addTaskAttachment,
+      removeTaskAttachment,
+      downloadTaskAttachment,
+      addSubtask,
+      toggleSubtask,
+      deleteSubtask,
+      setTaskBlockedBy,
+      setSelectedProjectId,
+      getTeamMember,
+      addNote,
+      updateNote,
+      deleteNote,
+      addTimeEntry,
+      updateTimeEntry,
+      deleteTimeEntry,
+      refreshTimeEntries,
+      setTheme,
+      setUser,
     }}>
       {children}
     </AppContext.Provider>
