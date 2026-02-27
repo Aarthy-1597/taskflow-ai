@@ -1,7 +1,7 @@
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, KanbanSquare, FolderOpen, Clock, Zap, Users, Settings, ChevronLeft, ChevronRight
+  LayoutDashboard, KanbanSquare, FolderOpen, Clock, Zap, Users, Settings, ChevronLeft, ChevronRight, StickyNote
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Board', url: '/board', icon: KanbanSquare },
   { title: 'Projects', url: '/projects', icon: FolderOpen },
+  { title: 'Notes', url: '/notes', icon: StickyNote },
   { title: 'Time Tracking', url: '/time', icon: Clock },
   { title: 'Automation', url: '/automation', icon: Zap },
   { title: 'Team', url: '/team', icon: Users },

@@ -1,17 +1,19 @@
-import { Search, Bell, Moon, Sun } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Search, Bell, Sun, Moon, Minimize2 } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
+import { ThemeMode } from '@/data/types';
+
+const themeIcons: Record<ThemeMode, typeof Sun> = { light: Sun, dark: Moon, minimal: Minimize2 };
+const themeOrder: ThemeMode[] = ['dark', 'light', 'minimal'];
 
 export function TopNavbar() {
-  const [dark, setDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return document.documentElement.classList.contains('dark');
-    }
-    return true;
-  });
+  const { theme, setTheme } = useApp();
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-  }, [dark]);
+  const cycleTheme = () => {
+    const idx = themeOrder.indexOf(theme);
+    setTheme(themeOrder[(idx + 1) % themeOrder.length]);
+  };
+
+  const Icon = themeIcons[theme];
 
   return (
     <header className="h-14 border-b border-border bg-background/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-30">
@@ -29,10 +31,11 @@ export function TopNavbar() {
 
       <div className="flex items-center gap-2">
         <button
-          onClick={() => setDark(!dark)}
+          onClick={cycleTheme}
           className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title={`Theme: ${theme}`}
         >
-          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <Icon className="h-4 w-4" />
         </button>
         <button className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative">
           <Bell className="h-4 w-4" />

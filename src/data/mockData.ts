@@ -1,4 +1,4 @@
-import { Task, Project, TimeEntry, AutomationRule, Activity, TeamMember } from './types';
+import { Task, Project, TimeEntry, AutomationRule, Activity, TeamMember, Note } from './types';
 
 export const teamMembers: TeamMember[] = [
   { id: '1', name: 'Alex Chen', email: 'alex@flowboard.io', avatar: '', role: 'admin', status: 'online' },
@@ -50,4 +50,12 @@ export const automationRules: AutomationRule[] = [
   { id: 'ar1', name: 'Notify PM on review', trigger: 'status_changed', triggerValue: 'in_review', action: 'send_notification', actionValue: 'PM notified', enabled: true, projectId: 'p1' },
   { id: 'ar2', name: 'Urgent on overdue', trigger: 'task_overdue', triggerValue: '', action: 'change_priority', actionValue: 'urgent', enabled: true, projectId: 'p1' },
   { id: 'ar3', name: 'Celebrate completion', trigger: 'status_changed', triggerValue: 'done', action: 'send_teams_message', actionValue: '🎉 Task completed!', enabled: false, projectId: 'p1' },
+];
+
+export const notes: Note[] = [
+  { id: 'n1', content: 'Need to finalize the OAuth callback URL with Azure AD team before proceeding.', taskId: 't3', userId: '1', createdAt: '2026-02-27T08:00:00Z', updatedAt: '2026-02-27T08:00:00Z' },
+  { id: 'n2', content: 'Wireframe v3 approved by stakeholders. Moving to hi-fi mockups next.', taskId: 't2', userId: '4', createdAt: '2026-02-26T14:00:00Z', updatedAt: '2026-02-26T15:30:00Z' },
+  { id: 'n3', content: 'Sprint planning: Focus on auth and kanban features for the next two weeks.', projectId: 'p1', userId: '2', createdAt: '2026-02-25T10:00:00Z', updatedAt: '2026-02-25T10:00:00Z' },
+  { id: 'n4', content: 'Consider implementing virtual scrolling for large task lists. Performance could degrade with 500+ tasks.', projectId: 'p1', userId: '1', createdAt: '2026-02-24T16:00:00Z', updatedAt: '2026-02-24T16:00:00Z' },
+  { id: 'n5', content: 'Mobile nav bug reproduction steps: Open menu → navigate → menu stays open on iOS Safari.', taskId: 't7', userId: '3', createdAt: '2026-02-27T09:00:00Z', updatedAt: '2026-02-27T09:00:00Z' },
 ];

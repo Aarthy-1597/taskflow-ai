@@ -70,6 +70,18 @@ export interface AutomationRule {
   projectId: string;
 }
 
+export interface Note {
+  id: string;
+  content: string;
+  taskId?: string;
+  projectId?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ThemeMode = 'light' | 'dark' | 'minimal';
+
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; colorClass: string }> = {
   todo: { label: 'To Do', colorClass: 'bg-status-todo' },
   in_progress: { label: 'In Progress', colorClass: 'bg-status-progress' },

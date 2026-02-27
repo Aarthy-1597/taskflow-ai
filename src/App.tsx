@@ -7,6 +7,7 @@ import { AppProvider } from "@/context/AppContext";
 import Index from "./pages/Index";
 import BoardPage from "./pages/BoardPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import NotesPage from "./pages/NotesPage";
 import TimePage from "./pages/TimePage";
 import AutomationPage from "./pages/AutomationPage";
 import TeamPage from "./pages/TeamPage";
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/board" element={<BoardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/notes" element={<NotesPage />} />
             <Route path="/time" element={<TimePage />} />
             <Route path="/automation" element={<AutomationPage />} />
             <Route path="/team" element={<TeamPage />} />
