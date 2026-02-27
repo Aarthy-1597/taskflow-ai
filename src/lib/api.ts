@@ -24,6 +24,7 @@ function toProjectModel(p: any): Project {
   };
 }
 
+
 function toTaskModel(t: any, fallbackProjectId?: string): Task {
   const rawStatus = String(t?.status ?? "todo").toLowerCase().replace(/[\s-]+/g, "_");
   const status: Task["status"] =
@@ -468,7 +469,15 @@ function toNotificationModel(n: any): AppNotification {
 export async function listNotificationsApi(userId?: string): Promise<AppNotification[]> {
   const q: Record<string, string> = {};
   if (userId) q.user_id = userId;
-  const res = await apiGet<any[]>("/api/notifications", q);
+  const query = new URLSearchParams(q).toString();
+  const path = query ? `/api/notifications?${query}` : "/api/notifications";
+  const res = await request<any[]>(path, {
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
   return (Array.isArray(res) ? res : []).map(toNotificationModel);
 }
 

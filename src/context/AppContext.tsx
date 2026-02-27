@@ -3,6 +3,7 @@ import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, Te
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
 import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchCurrentUser, fetchInitialBoardData, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
+import { logout as apiLogout } from '@/api/auth';
 import * as timeEntriesApi from '@/api/timeEntries';
 import { toast } from 'sonner';
 import { io as socketClient } from 'socket.io-client';
@@ -53,6 +54,7 @@ interface AppState {
   refreshTimeEntries: (params?: timeEntriesApi.ListTimeEntriesParams) => Promise<void>;
   setTheme: (theme: ThemeMode) => void;
   setUser: (user: User | null) => void;
+  logout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -318,6 +320,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem(STORAGE_KEYS.user);
     }
+  };
+
+  const logout = async () => {
+    await apiLogout();
+    setUser(null);
+    toast.success('Signed out');
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
@@ -603,6 +611,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshTimeEntries,
       setTheme,
       setUser,
+      logout,
     }}>
       {children}
     </AppContext.Provider>

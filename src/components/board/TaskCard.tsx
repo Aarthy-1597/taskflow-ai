@@ -3,11 +3,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/data/types';
 import { PriorityBadge } from '@/components/shared/PriorityBadge';
 import { UserAvatar } from '@/components/shared/UserAvatar';
-import { MessageSquare, Paperclip, Calendar, Link2 } from 'lucide-react';
+import { MessageSquare, Paperclip, Calendar, Link2, GripVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
   });
@@ -26,14 +26,22 @@ export function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }
     <motion.div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
       layout
       onClick={onClick}
-      className={`group p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing ${
+      className={`group relative pl-8 pr-3 py-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-all cursor-pointer ${
         isDragging ? 'opacity-50 shadow-xl scale-105' : 'hover-lift'
       }`}
     >
+      <div
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        className="absolute left-1 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-grab active:cursor-grabbing touch-none"
+        title="Drag to move"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
       <div className="flex items-start justify-between gap-2 mb-2">
         <h4 className="text-sm font-medium text-card-foreground leading-tight">{task.title}</h4>
         <PriorityBadge priority={task.priority} />

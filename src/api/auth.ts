@@ -29,12 +29,13 @@ export function redirectToMicrosoftLogin(): void {
   window.location.href = AUTH_ENDPOINTS.login;
 }
 
-/** POST /api/auth/logout - Clear session on backend */
+/** GET /api/auth/logout - Clear session on backend */
 export async function logout(): Promise<void> {
   try {
     const res = await fetch(AUTH_ENDPOINTS.logout, {
-      method: 'POST',
+      method: 'GET',
       credentials: 'include',
+      redirect: 'follow',
     });
     if (!res.ok && res.status !== 404) {
       throw new Error('Logout failed');
