@@ -2,7 +2,7 @@ import { useState, createContext, useContext, ReactNode, useEffect, useCallback 
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, TeamMember, TaskAttachment, Subtask } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
-import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, fetchInitialBoardData } from '@/lib/api';
+import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, fetchInitialBoardData, fetchCurrentUser } from '@/lib/api';
 import * as timeEntriesApi from '@/api/timeEntries';
 import { toast } from 'sonner';
 
@@ -212,13 +212,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!hasApi) return;
     (async () => {
       try {
+        // 1) Hydrate board data
         const { projects: apiProjects, tasks: apiTasks, users } = await fetchInitialBoardData();
         setProjects(apiProjects.map(ensureProjectShape));
         setTasks(apiTasks.map(ensureTaskShape));
         setTeamMembers(users);
       } catch (err) {
-        // Fail soft; keep local mock data if API call fails
         console.error('Failed to load data from API, falling back to local data', err);
+      }
+
+      try {
+        // 2) Hydrate current user from backend /auth/me (if logged in via Microsoft)
+        const me = await fetchCurrentUser();
+        setUser({
+          name: me.displayName,
+          email: me.email,
+          role: me.role,
+        });
+      } catch {
+        // Ignore if not logged in; user stays null
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
