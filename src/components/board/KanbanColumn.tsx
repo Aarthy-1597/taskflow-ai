@@ -4,7 +4,13 @@ import { TaskStatus, STATUS_CONFIG, Task } from '@/data/types';
 import { TaskCard } from './TaskCard';
 import { Plus } from 'lucide-react';
 
-export function KanbanColumn({ status, tasks }: { status: TaskStatus; tasks: Task[] }) {
+interface Props {
+  status: TaskStatus;
+  tasks: Task[];
+  onTaskClick?: (task: Task) => void;
+}
+
+export function KanbanColumn({ status, tasks, onTaskClick }: Props) {
   const config = STATUS_CONFIG[status];
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -31,7 +37,7 @@ export function KanbanColumn({ status, tasks }: { status: TaskStatus; tasks: Tas
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard key={task.id} task={task} onClick={() => onTaskClick?.(task)} />
           ))}
         </SortableContext>
       </div>

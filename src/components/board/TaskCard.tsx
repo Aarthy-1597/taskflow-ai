@@ -6,7 +6,7 @@ import { UserAvatar } from '@/components/shared/UserAvatar';
 import { MessageSquare, Paperclip, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
@@ -26,6 +26,7 @@ export function TaskCard({ task }: { task: Task }) {
       {...attributes}
       {...listeners}
       layout
+      onClick={onClick}
       className={`group p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing ${
         isDragging ? 'opacity-50 shadow-xl scale-105' : 'hover-lift'
       }`}
