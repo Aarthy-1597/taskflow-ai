@@ -8,6 +8,7 @@ import { Note } from '@/data/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Swal from 'sweetalert2';
 
 export default function NotesPage() {
   const { notes, addNote, updateNote, deleteNote, tasks, projects, getTeamMember } = useApp();
@@ -71,6 +72,47 @@ export default function NotesPage() {
     return 'General';
   };
 
+  const handleDelete = async (id: string) => {
+    const result = await Swal.fire({
+      title: 'Delete note?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      width: 360,
+      padding: '1rem',
+      showCancelButton: true,
+      confirmButtonColor: '#6366f1',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, delete',
+      cancelButtonText: 'Cancel',
+      customClass: {
+        popup: 'rounded-xl',
+        title: 'text-base',
+        htmlContainer: 'text-sm',
+        confirmButton: 'px-3 py-1.5 text-sm',
+        cancelButton: 'px-3 py-1.5 text-sm',
+      },
+    });
+
+    if (!result.isConfirmed) return;
+
+    deleteNote(id);
+
+    await Swal.fire({
+      title: 'Deleted',
+      text: 'The note was deleted successfully.',
+      icon: 'success',
+      width: 320,
+      padding: '0.875rem',
+      timer: 1200,
+      showConfirmButton: false,
+      customClass: {
+        popup: 'rounded-xl',
+        title: 'text-base',
+        htmlContainer: 'text-sm',
+      },
+    });
+  };
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -122,7 +164,7 @@ export default function NotesPage() {
                       <button onClick={() => openEdit(note)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button onClick={() => deleteNote(note.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                      <button onClick={() => void handleDelete(note.id)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>

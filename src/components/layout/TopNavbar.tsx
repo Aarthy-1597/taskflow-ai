@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Bell, Sun, Moon, Minimize2, LogOut, User as UserIcon, Settings } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { ThemeMode } from '@/data/types';
+import { useEffect, useState, type ChangeEventHandler } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,13 +12,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { listNotificationsApi, markNotificationReadApi, type AppNotification } from '@/lib/api';
+import { io as socketClient } from 'socket.io-client';
 
 const themeIcons: Record<ThemeMode, typeof Sun> = { light: Sun, dark: Moon, minimal: Minimize2 };
 const themeOrder: ThemeMode[] = ['dark', 'light', 'minimal'];
 
 export function TopNavbar() {
-  const { theme, setTheme, user, logout } = useApp();
+  const { theme, setTheme, user, logout, setUser, currentUserId } = useApp();
   const navigate = useNavigate();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [avatarPreview, setAvatarPreview] = useState<string | undefined>(user?.avatar);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const cycleTheme = () => {
     const idx = themeOrder.indexOf(theme);
@@ -31,10 +46,107 @@ export function TopNavbar() {
   };
 
   const Icon = themeIcons[theme];
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  useEffect(() => {
+    let cancelled = false;
+    void listNotificationsApi().then((items) => {
+      if (!cancelled) setNotifications(items);
+    }).catch(() => {
+      // no-op
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
+    if (!hasApi) return;
+    const socket = socketClient(import.meta.env.VITE_API_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+    socket.emit('join', currentUserId);
+    socket.on('notification', (payload: unknown) => {
+      const n = payload as Record<string, unknown>;
+      const normalized: AppNotification = {
+        id: String(n.id ?? n._id ?? ''),
+        userId: String(n.userId ?? n.user_id ?? ''),
+        type: String(n.type ?? ''),
+        title: String(n.title ?? 'Notification'),
+        message: String(n.message ?? ''),
+        taskId: n.taskId ? String(n.taskId) : n.task_id ? String(n.task_id) : undefined,
+        projectId: n.projectId ? String(n.projectId) : n.project_id ? String(n.project_id) : undefined,
+        read: !!n.read,
+        createdAt: String(n.createdAt ?? new Date().toISOString()),
+      };
+      setNotifications(prev => [normalized, ...prev]);
+    });
+    return () => {
+      socket.off('notification');
+      socket.disconnect();
+    };
+  }, [currentUserId]);
 
   const getInitials = (name: string | undefined) => {
     if (!name || typeof name !== 'string') return '??';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || '??';
+  };
+
+  const handleProfileSave = () => {
+    if (!displayName.trim() || !email.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    setUser({
+      name: displayName.trim(),
+      email: email.trim(),
+      role: user?.role || 'Member',
+      avatar: avatarPreview,
+    });
+    toast.success('Profile updated');
+    setProfileOpen(false);
+  };
+
+  const handleAvatarChange: ChangeEventHandler<HTMLInputElement> = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarPreview(String(reader.result || ''));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleChangePassword = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Please fill all password fields');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New password and confirm password do not match');
+      return;
+    }
+    toast.success('Password changed successfully');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordOpen(false);
+  };
+
+  const handleNotificationClick = (n: AppNotification) => {
+    if (!n.read) {
+      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
+      void markNotificationReadApi(n.id).catch(() => {
+        // no-op
+      });
+    }
+    if (n.taskId) navigate('/board');
   };
 
   return (
@@ -59,10 +171,38 @@ export function TopNavbar() {
         >
           <Icon className="h-4 w-4" />
         </button>
-        <button className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-primary rounded-full" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative">
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-primary text-primary-foreground text-[9px] rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 mt-2 bg-[#0C0C12] border-white/10 text-white shadow-2xl backdrop-blur-xl">
+            <DropdownMenuLabel className="text-xs text-gray-400">Notifications</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-white/5" />
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-gray-400">No notifications yet</div>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`w-full text-left px-3 py-2 border-b border-white/5 hover:bg-white/5 transition-colors ${n.read ? 'opacity-70' : ''}`}
+                  >
+                    <div className="text-xs font-semibold">{n.title}</div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">{n.message}</div>
+                  </button>
+                ))
+              )}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -96,10 +236,21 @@ export function TopNavbar() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-white/5" />
-            <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-white flex items-center gap-2 py-2">
+            <DropdownMenuItem
+              onClick={() => {
+                setDisplayName(user?.name || '');
+                setEmail(user?.email || '');
+                setAvatarPreview(user?.avatar);
+                setProfileOpen(true);
+              }}
+              className="cursor-pointer focus:bg-white/5 focus:text-white flex items-center gap-2 py-2"
+            >
               <UserIcon className="h-4 w-4 text-primary" /> Profile Settings
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-white flex items-center gap-2 py-2">
+            <DropdownMenuItem
+              onClick={() => setPasswordOpen(true)}
+              className="cursor-pointer focus:bg-white/5 focus:text-white flex items-center gap-2 py-2"
+            >
               <Settings className="h-4 w-4 text-primary" /> Preferences
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-white/5" />
@@ -112,6 +263,67 @@ export function TopNavbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Profile Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-14 w-14 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold">{getInitials(displayName)}</span>
+                )}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Profile Picture</label>
+                <Input type="file" accept="image/*" onChange={handleAvatarChange} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Name</label>
+              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Email</label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setProfileOpen(false)}>Cancel</Button>
+              <Button onClick={handleProfileSave}>Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Current Password</label>
+              <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">New Password</label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Confirm Password</label>
+              <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPasswordOpen(false)}>Cancel</Button>
+              <Button onClick={handleChangePassword}>Update Password</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

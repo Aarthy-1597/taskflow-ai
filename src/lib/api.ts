@@ -1,4 +1,4 @@
-import type { Project, Task, TeamMember } from "@/data/types";
+import type { Activity, AutomationRule, Note, Project, Task, TeamMember } from "@/data/types";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -94,7 +94,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(text || `Request failed with ${res.status}`);
   }
-  return (await res.json()) as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as T;
+  }
 }
 
 // Generic helpers used by timeEntries API and others
@@ -267,5 +278,202 @@ export async function fetchCurrentUser() {
     microsoftId: string;
     displayName: string;
   }>;
+}
+
+function toNoteModel(n: any): Note {
+  return {
+    id: String(n?._id ?? n?.id ?? ""),
+    content: String(n?.content ?? ""),
+    taskId: n?.task_id ?? n?.taskId ?? undefined,
+    projectId: n?.project_id ?? n?.projectId ?? undefined,
+    userId: String(n?.user_id ?? n?.userId ?? "1"),
+    createdAt: String(n?.createdAt ?? new Date().toISOString()),
+    updatedAt: String(n?.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+export async function listNotesApi(): Promise<Note[]> {
+  const res = await request<any>("/api/notes");
+  const arr = Array.isArray(res) ? res : res.notes ?? [];
+  return arr.map(toNoteModel);
+}
+
+export async function createNoteApi(note: Omit<Note, "id"> | Note): Promise<Note> {
+  const body = {
+    content: note.content,
+    taskId: note.taskId,
+    projectId: note.projectId,
+    userId: note.userId,
+  };
+  const created = await request<any>("/api/notes", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return toNoteModel(created);
+}
+
+export async function updateNoteApi(id: string, updates: Partial<Note>): Promise<Note> {
+  const body = {
+    ...(updates.content !== undefined ? { content: updates.content } : {}),
+    ...(updates.taskId !== undefined ? { taskId: updates.taskId } : {}),
+    ...(updates.projectId !== undefined ? { projectId: updates.projectId } : {}),
+  };
+  const updated = await request<any>(`/api/notes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  return toNoteModel(updated);
+}
+
+export async function deleteNoteApi(id: string): Promise<void> {
+  await request<void>(`/api/notes/${id}`, { method: "DELETE" });
+}
+
+function toAutomationRuleModel(r: any): AutomationRule {
+  return {
+    id: String(r?._id ?? r?.id ?? ""),
+    name: String(r?.name ?? ""),
+    trigger: String(r?.trigger ?? ""),
+    triggerValue: String(r?.trigger_value ?? r?.triggerValue ?? ""),
+    action: String(r?.action ?? ""),
+    actionValue: String(r?.action_value ?? r?.actionValue ?? ""),
+    enabled: !!r?.enabled,
+    projectId: String(r?.project_id ?? r?.projectId ?? ""),
+  };
+}
+
+export async function listAutomationRulesApi(projectId?: string): Promise<AutomationRule[]> {
+  const q: Record<string, string> = {};
+  if (projectId) q.project_id = projectId;
+  const res = await apiGet<any[]>("/api/automation-rules", q);
+  return (Array.isArray(res) ? res : []).map(toAutomationRuleModel);
+}
+
+export async function updateAutomationRuleApi(id: string, updates: Partial<AutomationRule>): Promise<AutomationRule> {
+  const body = {
+    ...(updates.name !== undefined ? { name: updates.name } : {}),
+    ...(updates.trigger !== undefined ? { trigger: updates.trigger } : {}),
+    ...(updates.triggerValue !== undefined ? { triggerValue: updates.triggerValue } : {}),
+    ...(updates.action !== undefined ? { action: updates.action } : {}),
+    ...(updates.actionValue !== undefined ? { actionValue: updates.actionValue } : {}),
+    ...(updates.enabled !== undefined ? { enabled: updates.enabled } : {}),
+    ...(updates.projectId !== undefined ? { projectId: updates.projectId } : {}),
+  };
+  const res = await apiPut<any>(`/api/automation-rules/${id}`, body);
+  return toAutomationRuleModel(res);
+}
+
+export async function createAutomationRuleApi(rule: Omit<AutomationRule, "id">): Promise<AutomationRule> {
+  const body = {
+    name: rule.name,
+    trigger: rule.trigger,
+    triggerValue: rule.triggerValue,
+    action: rule.action,
+    actionValue: rule.actionValue,
+    enabled: rule.enabled,
+    projectId: rule.projectId,
+  };
+  const res = await apiPost<any>("/api/automation-rules", body);
+  return toAutomationRuleModel(res);
+}
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  content: string;
+  mentions: string[];
+  createdAt: string;
+}
+
+function toTaskComment(c: any): TaskComment {
+  return {
+    id: String(c?._id ?? c?.id ?? ""),
+    taskId: String(c?.task_id ?? c?.taskId ?? ""),
+    userId: String(c?.user_id?._id ?? c?.user_id ?? c?.userId ?? ""),
+    content: String(c?.content ?? c?.text ?? ""),
+    mentions: Array.isArray(c?.mentions) ? c.mentions.map((m: any) => String(m?._id ?? m)) : [],
+    createdAt: String(c?.createdAt ?? new Date().toISOString()),
+  };
+}
+
+export async function listTaskCommentsApi(taskId: string): Promise<TaskComment[]> {
+  const res = await apiGet<any>(`/api/comments/task/${taskId}`);
+  const comments = Array.isArray(res) ? res : res.comments ?? [];
+  return comments.map(toTaskComment);
+}
+
+export async function addTaskCommentApi(taskId: string, content: string): Promise<TaskComment> {
+  const res = await apiPost<any>(`/api/comments/task/${taskId}`, { content });
+  return toTaskComment(res.comment ?? res);
+}
+
+export interface ActivityFeedItem {
+  id: string;
+  taskId?: string;
+  projectId?: string;
+  userId: string;
+  userName?: string;
+  action: Activity["type"] | string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+function toActivityFeedItem(a: any): ActivityFeedItem {
+  return {
+    id: String(a?.id ?? a?._id ?? ""),
+    taskId: a?.taskId ?? (a?.task_id ? String(a.task_id) : undefined),
+    projectId: a?.projectId ?? (a?.project_id ? String(a.project_id) : undefined),
+    userId: String(a?.userId ?? a?.user_id ?? ""),
+    userName: a?.userName,
+    action: String(a?.action ?? ""),
+    details: (a?.details ?? {}) as Record<string, unknown>,
+    createdAt: String(a?.createdAt ?? new Date().toISOString()),
+  };
+}
+
+export async function listActivitiesApi(projectId?: string): Promise<ActivityFeedItem[]> {
+  const q: Record<string, string> = {};
+  if (projectId) q.project_id = projectId;
+  const res = await apiGet<any[]>("/api/activities", q);
+  return (Array.isArray(res) ? res : []).map(toActivityFeedItem);
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  taskId?: string;
+  projectId?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+function toNotificationModel(n: any): AppNotification {
+  return {
+    id: String(n?.id ?? n?._id ?? ""),
+    userId: String(n?.userId ?? n?.user_id ?? ""),
+    type: String(n?.type ?? ""),
+    title: String(n?.title ?? ""),
+    message: String(n?.message ?? ""),
+    taskId: n?.taskId ?? (n?.task_id ? String(n.task_id) : undefined),
+    projectId: n?.projectId ?? (n?.project_id ? String(n.project_id) : undefined),
+    read: !!n?.read,
+    createdAt: String(n?.createdAt ?? new Date().toISOString()),
+  };
+}
+
+export async function listNotificationsApi(userId?: string): Promise<AppNotification[]> {
+  const q: Record<string, string> = {};
+  if (userId) q.user_id = userId;
+  const res = await apiGet<any[]>("/api/notifications", q);
+  return (Array.isArray(res) ? res : []).map(toNotificationModel);
+}
+
+export async function markNotificationReadApi(id: string): Promise<AppNotification> {
+  const res = await request<any>(`/api/notifications/${id}/read`, { method: "PATCH" });
+  return toNotificationModel(res);
 }
 

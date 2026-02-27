@@ -2,9 +2,10 @@ import { useState, createContext, useContext, ReactNode, useEffect, useCallback 
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, TeamMember, TaskAttachment, Subtask } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
-import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, fetchInitialBoardData, fetchCurrentUser } from '@/lib/api';
+import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchCurrentUser, fetchInitialBoardData, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
 import * as timeEntriesApi from '@/api/timeEntries';
 import { toast } from 'sonner';
+import { io as socketClient } from 'socket.io-client';
 
 export interface User {
   name: string;
@@ -172,7 +173,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return stored && Array.isArray(stored) ? stored : initialTeamMembers;
   });
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(initialTimeEntries);
-  const [automationRules] = useState<AutomationRule[]>(initialRules);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialRules);
   const [activities] = useState<Activity[]>(initialActivities);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
@@ -188,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEYS.user);
     return stored ? JSON.parse(stored) : null;
   });
+  const currentUserId = '1';
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
@@ -222,6 +224,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        const apiNotes = await listNotesApi();
+        if (apiNotes.length > 0) {
+          setNotes(apiNotes);
+        }
+      } catch {
+        // Keep local notes if API is unavailable
+      }
+
+      try {
+        const rules = await listAutomationRulesApi();
+        if (rules.length > 0) {
+          setAutomationRules(rules);
+        }
+      } catch {
+        // Keep local rules if API is unavailable
+      }
+
+      try {
         // 2) Hydrate current user from backend /auth/me (if logged in via Microsoft)
         const me = await fetchCurrentUser();
         setUser({
@@ -235,6 +255,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
+    if (!hasApi) return;
+
+    const socket = socketClient(import.meta.env.VITE_API_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.emit('join', currentUserId);
+
+    const reloadBoardData = async () => {
+      try {
+        const { projects: apiProjects, tasks: apiTasks, users } = await fetchInitialBoardData();
+        setProjects(apiProjects.map(ensureProjectShape));
+        setTasks(apiTasks.map(ensureTaskShape));
+        setTeamMembers(users);
+      } catch {
+        // keep current state on transient socket refresh errors
+      }
+    };
+
+    const realtimeEvents = [
+      'task:created',
+      'task:updated',
+      'task:deleted',
+      'task:status_changed',
+      'task:assignees_changed',
+      'activity:created',
+      'comment:created',
+    ];
+
+    realtimeEvents.forEach((eventName) => {
+      socket.on(eventName, () => {
+        void reloadBoardData();
+      });
+    });
+
+    socket.on('presence:update', (payload: { userId: string; online: boolean }) => {
+      setTeamMembers((prev) =>
+        prev.map((m) =>
+          m.id === payload.userId
+            ? { ...m, status: payload.online ? 'online' : m.status }
+            : m
+        )
+      );
+    });
+
+    return () => {
+      realtimeEvents.forEach((eventName) => socket.off(eventName));
+      socket.off('presence:update');
+      socket.disconnect();
+    };
+  }, [currentUserId]);
 
   const setUser = (newUser: User | null) => {
     setUserState(newUser);
@@ -341,12 +416,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const getTeamMember = (id: string) => teamMembers.find(m => m.id === id);
+  const isMongoObjectId = (id: string) => /^[a-f\d]{24}$/i.test(id);
 
-  const addNote = (note: Note) => setNotes(prev => [note, ...prev]);
+  const addNote = (note: Note) => {
+    setNotes(prev => [note, ...prev]);
+    if (typeof import.meta !== 'undefined' && import.meta.env.VITE_API_URL) {
+      void createNoteApi(note).then(created => {
+        setNotes(prev => prev.map(n => n.id === note.id ? created : n));
+      }).catch(() => {
+        // Keep optimistic note on failure
+      });
+    }
+  };
   const updateNote = (id: string, updates: Partial<Note>) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+    if (
+      typeof import.meta !== 'undefined' &&
+      import.meta.env.VITE_API_URL &&
+      isMongoObjectId(id)
+    ) {
+      void updateNoteApi(id, updates).then(updated => {
+        setNotes(prev => prev.map(n => n.id === id ? updated : n));
+      }).catch(() => {
+        // Keep optimistic update on failure
+      });
+    }
   };
-  const deleteNote = (id: string) => setNotes(prev => prev.filter(n => n.id !== id));
+  const deleteNote = (id: string) => {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    if (
+      typeof import.meta !== 'undefined' &&
+      import.meta.env.VITE_API_URL &&
+      isMongoObjectId(id)
+    ) {
+      void deleteNoteApi(id).catch(() => {
+        // no-op
+      });
+    }
+  };
 
   const refreshTimeEntries = useCallback(async (params?: timeEntriesApi.ListTimeEntriesParams) => {
     try {
@@ -468,7 +575,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectedProjectId,
       theme,
       user,
-      currentUserId: '1',
+      currentUserId,
       setTasks,
       setProjects,
       setTeamMembers,
