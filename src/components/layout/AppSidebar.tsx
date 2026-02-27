@@ -32,17 +32,18 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, setUser } = useApp();
+  const { user, logout } = useApp();
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await logout();
     toast.success("Logged out successfully");
     navigate('/login');
   };
 
   // Get initials for avatar
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  const getInitials = (name: string | undefined) => {
+    if (!name || typeof name !== 'string') return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || '??';
   };
 
   return (
@@ -98,8 +99,12 @@ export function AppSidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-all duration-200">
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 transition-transform duration-200 hover:scale-110">
-                {user ? getInitials(user.name) : '??'}
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 overflow-hidden transition-transform duration-200 hover:scale-110">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+                ) : (
+                  getInitials(user?.name)
+                )}
               </div>
               <AnimatePresence>
                 {!collapsed && (
@@ -109,8 +114,14 @@ export function AppSidebar() {
                     exit={{ opacity: 0, width: 0 }}
                     className="flex flex-col items-start overflow-hidden whitespace-nowrap"
                   >
-                    <span className="text-xs font-semibold">{user?.name || 'Guest User'}</span>
-                    <span className="text-[10px] text-muted-foreground">{user?.role || 'Guest'}</span>
+                    {user?.name ? (
+                      <>
+                        <span className="text-xs font-semibold">{user.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{user.role || 'Member'}</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Sign in</span>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

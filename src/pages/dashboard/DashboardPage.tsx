@@ -59,7 +59,7 @@ export default function DashboardPage() {
       <div className="p-6 space-y-6">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-display font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Welcome back, {user?.name.split(' ')[0] || 'User'}</p>
+          <p className="text-sm text-muted-foreground mt-1">Welcome back, {user?.name?.split(' ')[0] ?? 'User'}</p>
         </motion.div>
 
         {/* Stats */}

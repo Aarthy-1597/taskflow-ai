@@ -6,6 +6,7 @@ import { useApp } from '@/context/AppContext';
 import RoleSelector, { Role } from '@/components/auth/RoleSelector';
 import MicrosoftLoginButton from '@/components/auth/MicrosoftLoginButton';
 import EmailLoginForm from '@/components/auth/EmailLoginForm';
+import { redirectToMicrosoftLogin } from '@/api/auth';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -13,7 +14,7 @@ const LoginPage = () => {
     const [selectedRole, setSelectedRole] = useState<Role>('Team_Member');
 
     const handleMicrosoftLogin = () => {
-        toast.info("Microsoft login is coming soon!");
+        redirectToMicrosoftLogin();
     };
 
     const handleEmailLogin = (email: string, pass: string) => {
