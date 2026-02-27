@@ -18,7 +18,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(text || `Request failed with ${res.status}`);
   }
-  return (await res.json()) as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
+}
+
+export async function apiGet<T>(path: string, q?: Record<string, string>): Promise<T> {
+  const url = q && Object.keys(q).length > 0 ? `${path}?${new URLSearchParams(q).toString()}` : path;
+  return request<T>(url);
+}
+
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: "POST", body: body != null ? JSON.stringify(body) : undefined });
+}
+
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: "PUT", body: body != null ? JSON.stringify(body) : undefined });
+}
+
+export async function apiDelete(path: string): Promise<void> {
+  await request<void>(path, { method: "DELETE" });
 }
 
 export async function fetchInitialBoardData() {
