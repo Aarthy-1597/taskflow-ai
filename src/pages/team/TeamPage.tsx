@@ -1,8 +1,9 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { motion } from 'framer-motion';
-import { teamMembers } from '@/data/mockData';
+import { useApp } from '@/context/AppContext';
 
 export default function TeamPage() {
+  const { teamMembers } = useApp();
   const roleLabels: Record<string, string> = { admin: 'Admin', project_manager: 'Project Manager', member: 'Team Member' };
 
   return (
