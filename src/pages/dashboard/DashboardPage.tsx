@@ -4,13 +4,12 @@ import { motion } from 'framer-motion';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { PriorityBadge } from '@/components/shared/PriorityBadge';
 import { CheckCircle2, Clock, AlertTriangle, TrendingUp, Activity as ActivityIcon, BarChart3, Users, Timer } from 'lucide-react';
-import { teamMembers } from '@/data/mockData';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 
 export default function DashboardPage() {
-  const { tasks, projects, activities, timeEntries, getTeamMember, user } = useApp();
+  const { tasks, projects, activities, timeEntries, getTeamMember, user, teamMembers } = useApp();
 
-  const myTasks = tasks.filter(t => t.assignee === '1');
+  const myTasks = tasks.filter(t => t.assignees.includes('1'));
   const overdueTasks = tasks.filter(t => new Date(t.dueDate) < new Date() && t.status !== 'done');
   const totalHours = timeEntries.reduce((s, e) => s + e.hours, 0);
   const doneTasks = tasks.filter(t => t.status === 'done').length;
@@ -25,8 +24,8 @@ export default function DashboardPage() {
   // Team workload data
   const workloadData = teamMembers.map(m => ({
     name: m.name.split(' ')[0],
-    tasks: tasks.filter(t => t.assignee === m.id && t.status !== 'done').length,
-    completed: tasks.filter(t => t.assignee === m.id && t.status === 'done').length,
+    tasks: tasks.filter(t => t.assignees.includes(m.id) && t.status !== 'done').length,
+    completed: tasks.filter(t => t.assignees.includes(m.id) && t.status === 'done').length,
   }));
 
   // Time by project

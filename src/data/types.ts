@@ -25,18 +25,34 @@ export interface Project {
   progress: number;
 }
 
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
-  assignee: string;
+  assignees: string[];
   projectId: string;
   dueDate: string;
   labels: string[];
+  attachments: TaskAttachment[];
+  subtasks: Subtask[];
+  blockedBy: string[]; // task IDs that block this task (optional v2)
   commentCount: number;
-  attachmentCount: number;
   order: number;
 }
 

@@ -8,9 +8,10 @@ interface Props {
   status: TaskStatus;
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
+  onCreateTask?: (status: TaskStatus) => void;
 }
 
-export function KanbanColumn({ status, tasks, onTaskClick }: Props) {
+export function KanbanColumn({ status, tasks, onTaskClick, onCreateTask }: Props) {
   const config = STATUS_CONFIG[status];
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -24,7 +25,12 @@ export function KanbanColumn({ status, tasks, onTaskClick }: Props) {
           </h3>
           <span className="text-xs text-muted-foreground font-display">{tasks.length}</span>
         </div>
-        <button className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+        <button
+          type="button"
+          onClick={() => onCreateTask?.(status)}
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Create task"
+        >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>

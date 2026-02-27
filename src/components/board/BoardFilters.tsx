@@ -1,8 +1,8 @@
 import { TaskPriority } from '@/data/types';
-import { teamMembers } from '@/data/mockData';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { Filter, Users, Flag, Layers } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useApp } from '@/context/AppContext';
 
 export type SwimLane = 'none' | 'assignee' | 'priority';
 
@@ -22,6 +22,8 @@ export function BoardFilters({
   assigneeFilter, priorityFilter, labelFilter, swimLane, labels,
   onAssigneeChange, onPriorityChange, onLabelChange, onSwimLaneChange,
 }: Props) {
+  const { teamMembers } = useApp();
+
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

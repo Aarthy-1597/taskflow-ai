@@ -1,55 +1,68 @@
-/**
- * API configuration for Time Tracking backend.
- * Set VITE_API_BASE_URL in .env (e.g. http://localhost:8000) to connect to your backend.
- * Falls back to http://localhost:8000 if not set.
- */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import type { Project, Task, TeamMember } from "@/data/types";
 
-async function handleResponse<T>(res: Response): Promise<T> {
+const API_URL = import.meta.env.VITE_API_URL;
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!API_URL) {
+    throw new Error("VITE_API_URL is not configured");
+  }
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+    credentials: "include",
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    throw new Error(text || `Request failed with ${res.status}`);
   }
-  const contentType = res.headers.get('content-type');
-  if (contentType?.includes('application/json')) {
-    return res.json();
-  }
-  return res.text() as unknown as T;
+  return (await res.json()) as T;
 }
 
-export async function apiGet<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(path, API_BASE_URL);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') url.searchParams.set(k, v);
-    });
-  }
-  const res = await fetch(url.toString());
-  return handleResponse<T>(res);
+export async function fetchInitialBoardData() {
+  const [projects, tasks, users] = await Promise.all([
+    request<Project[]>("/api/projects"),
+    request<Task[]>("/api/tasks"),
+    request<TeamMember[]>("/api/users"),
+  ]);
+  return { projects, tasks, users };
 }
 
-export async function apiPost<T>(path: string, body?: object): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
+export async function apiCreateProject(body: Partial<Project>): Promise<Project> {
+  return request<Project>("/api/projects", {
+    method: "POST",
+    body: JSON.stringify(body),
   });
-  return handleResponse<T>(res);
 }
 
-export async function apiPut<T>(path: string, body?: object): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
+export async function apiUpdateProject(id: string, body: Partial<Project>): Promise<Project> {
+  return request<Project>(`/api/projects/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
-  return handleResponse<T>(res);
 }
 
-export async function apiDelete(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'DELETE' });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
-  }
+export async function apiDeleteProject(id: string): Promise<void> {
+  await request<void>(`/api/projects/${id}`, { method: "DELETE" });
 }
+
+export async function apiCreateTask(body: Partial<Task>): Promise<Task> {
+  return request<Task>("/api/tasks", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function apiUpdateTask(id: string, body: Partial<Task>): Promise<Task> {
+  return request<Task>(`/api/tasks/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function apiDeleteTask(id: string): Promise<void> {
+  await request<void>(`/api/tasks/${id}`, { method: "DELETE" });
+}
+
