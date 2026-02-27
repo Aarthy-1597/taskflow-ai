@@ -13,6 +13,7 @@ import AutomationPage from "./pages/automation/AutomationPage";
 import TeamPage from "./pages/team/TeamPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import LoginPage from "./pages/auth/LoginPage";
+import AuthCallbackPage from "./pages/auth/AuthCallbackPage";
 import AdminPage from "./pages/roles/AdminPage";
 import ProjectManagerPage from "./pages/roles/ProjectManagerPage";
 import TeamMemberPage from "./pages/roles/TeamMemberPage";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/team" element={<TeamPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/manager" element={<ProjectManagerPage />} />
             <Route path="/member" element={<TeamMemberPage />} />

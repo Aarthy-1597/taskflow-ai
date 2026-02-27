@@ -1,10 +1,12 @@
-import { useState, createContext, useContext, ReactNode, useCallback } from 'react';
+import { useState, createContext, useContext, ReactNode, useCallback, useEffect } from 'react';
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers, notes as initialNotes } from '@/data/mockData';
 import * as timeEntriesApi from '@/api/timeEntries';
+import * as authApi from '@/api/auth';
 import { toast } from 'sonner';
 
 export interface User {
+  id?: string;
   name: string;
   email: string;
   role: string;
@@ -35,6 +37,8 @@ interface AppState {
   refreshTimeEntries: (params?: timeEntriesApi.ListTimeEntriesParams) => Promise<void>;
   setTheme: (theme: ThemeMode) => void;
   setUser: (user: User | null) => void;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -80,6 +84,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('taskflow-user');
     }
   };
+
+  useEffect(() => {
+    authApi.getCurrentUser()
+      .then(apiUser => {
+        if (apiUser) {
+          setUser({
+            id: apiUser.id,
+            name: apiUser.name,
+            email: apiUser.email,
+            role: apiUser.role || 'Member',
+            avatar: apiUser.avatar,
+          });
+        }
+      })
+      .catch(() => { /* No session - keep localStorage or null */ });
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      /* Continue with local logout */
+    }
+    setUser(null);
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const apiUser = await authApi.getCurrentUser();
+    if (apiUser) {
+      setUser({
+        id: apiUser.id,
+        name: apiUser.name,
+        email: apiUser.email,
+        role: apiUser.role || 'Member',
+        avatar: apiUser.avatar,
+      });
+    }
+  }, [setUser]);
 
   const updateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -159,10 +201,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       tasks, projects, timeEntries, automationRules, activities, notes,
-      selectedProjectId, theme, user, currentUserId: '1',
+      selectedProjectId, theme, user, currentUserId: user?.id ?? '1',
       setTasks, updateTask, setSelectedProjectId, getTeamMember,
       addNote, updateNote, deleteNote, addTimeEntry, updateTimeEntry, deleteTimeEntry, refreshTimeEntries,
-      setTheme, setUser
+      setTheme, setUser, logout, refreshUser
     }}>
       {children}
     </AppContext.Provider>
