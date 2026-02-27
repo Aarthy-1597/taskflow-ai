@@ -4,11 +4,9 @@ import { tasks as initialTasks, projects as initialProjects, timeEntries as init
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
 import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, fetchInitialBoardData, fetchCurrentUser } from '@/lib/api';
 import * as timeEntriesApi from '@/api/timeEntries';
-import * as authApi from '@/api/auth';
 import { toast } from 'sonner';
 
 export interface User {
-  id?: string;
   name: string;
   email: string;
   role: string;
@@ -54,8 +52,6 @@ interface AppState {
   refreshTimeEntries: (params?: timeEntriesApi.ListTimeEntriesParams) => Promise<void>;
   setTheme: (theme: ThemeMode) => void;
   setUser: (user: User | null) => void;
-  logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -248,44 +244,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(STORAGE_KEYS.user);
     }
   };
-
-  useEffect(() => {
-    authApi.getCurrentUser()
-      .then(apiUser => {
-        if (apiUser) {
-          setUser({
-            id: apiUser.id,
-            name: apiUser.name,
-            email: apiUser.email,
-            role: apiUser.role || 'Member',
-            avatar: apiUser.avatar,
-          });
-        }
-      })
-      .catch(() => { /* No session - keep localStorage or null */ });
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      await authApi.logout();
-    } catch {
-      /* Continue with local logout */
-    }
-    setUser(null);
-  }, []);
-
-  const refreshUser = useCallback(async () => {
-    const apiUser = await authApi.getCurrentUser();
-    if (apiUser) {
-      setUser({
-        id: apiUser.id,
-        name: apiUser.name,
-        email: apiUser.email,
-        role: apiUser.role || 'Member',
-        avatar: apiUser.avatar,
-      });
-    }
-  }, [setUser]);
 
   const updateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -510,7 +468,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       selectedProjectId,
       theme,
       user,
-      currentUserId: user?.id ?? '1',
+      currentUserId: '1',
       setTasks,
       setProjects,
       setTeamMembers,
@@ -538,8 +496,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshTimeEntries,
       setTheme,
       setUser,
-      logout,
-      refreshUser,
     }}>
       {children}
     </AppContext.Provider>
