@@ -1,19 +1,32 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { getCurrentUser } from '@/api/auth';
+import { setAuthToken } from '@/lib/authToken';
 import { Loader2 } from 'lucide-react';
 
 /**
  * Handles OAuth callback redirect from backend.
  * Backend redirects here after Microsoft auth - we fetch user and redirect to app.
+ * Supports token in URL: ?token=xxx or ?access_token=xxx
  */
 export default function AuthCallbackPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser } = useApp();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = searchParams.get('token') ?? searchParams.get('access_token');
+    if (token) {
+      setAuthToken(token);
+      // Remove token from URL for security
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      url.searchParams.delete('access_token');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+
     getCurrentUser()
       .then(user => {
         if (user) {

@@ -8,6 +8,7 @@ interface Props {
   status: TaskStatus;
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
+  onCommentClick?: (task: Task, e: React.MouseEvent) => void;
   onCreateTask?: (status: TaskStatus) => void;
 }
 
@@ -43,7 +44,12 @@ export function KanbanColumn({ status, tasks, onTaskClick, onCreateTask }: Props
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
-            <TaskCard key={task.id} task={task} onClick={() => onTaskClick?.(task)} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick?.(task)}
+              onCommentClick={(e) => onCommentClick?.(task, e)}
+            />
           ))}
         </SortableContext>
       </div>

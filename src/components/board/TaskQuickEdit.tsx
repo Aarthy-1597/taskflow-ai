@@ -1,16 +1,17 @@
 import { Task, TaskStatus, PRIORITY_CONFIG, STATUS_CONFIG, TaskPriority } from '@/data/types';
 import { useApp } from '@/context/AppContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserAvatar } from '@/components/shared/UserAvatar';
-import { Calendar, Flag, Link2, Paperclip, Tag, Trash2, User } from 'lucide-react';
+import { Calendar, Flag, Link2, MessageSquare, Paperclip, Tag, Trash2, User } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useEffect, useMemo, useState } from 'react';
+import { listTaskCommentsApi, addTaskCommentApi } from '@/lib/api';
 
 interface Props {
   task: Task | null;
@@ -35,6 +36,12 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
 
   const [newLabel, setNewLabel] = useState('');
   const [newSubtask, setNewSubtask] = useState('');
+  const [comments, setComments] = useState<{ id: string; userId: string; content: string; createdAt: string }[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [statusChangeCommentOpen, setStatusChangeCommentOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ newStatus: TaskStatus } | null>(null);
+  const [statusChangeReason, setStatusChangeReason] = useState('');
 
   const currentTask = useMemo(() => {
     if (!task) return null;
@@ -45,24 +52,60 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
     if (!open) return;
     setNewLabel('');
     setNewSubtask('');
+    setNewComment('');
+    if (task?.id && import.meta.env.VITE_API_URL) {
+      setCommentsLoading(true);
+      listTaskCommentsApi(task.id)
+        .then(comments => {
+          setComments(comments);
+          updateTask(task.id, { commentCount: comments.length });
+        })
+        .catch(() => setComments([]))
+        .finally(() => setCommentsLoading(false));
+    } else {
+      setComments([]);
+    }
   }, [open, task?.id]);
 
-  if (!currentTask) return null;
+  const projectTasks = useMemo(
+    () => (currentTask ? tasks.filter(t => t.projectId === currentTask.projectId && t.id !== currentTask.id) : []),
+    [tasks, currentTask]
+  );
+  const activeBlockers = useMemo(() => {
+    if (!currentTask) return [];
+    const blockerSet = new Set(currentTask.blockedBy);
+    return tasks.filter(t => blockerSet.has(t.id) && t.status !== 'done');
+  }, [currentTask?.blockedBy, tasks, currentTask]);
 
   const handleChange = <K extends keyof Task>(field: K, value: Task[K]) => {
     updateTask(currentTask.id, { [field]: value } as Partial<Task>);
   };
 
-  const projectTasks = useMemo(
-    () => tasks.filter(t => t.projectId === currentTask.projectId && t.id !== currentTask.id),
-    [tasks, currentTask.id, currentTask.projectId]
-  );
-  const activeBlockers = useMemo(() => {
-    const blockerSet = new Set(currentTask.blockedBy);
-    return tasks.filter(t => blockerSet.has(t.id) && t.status !== 'done');
-  }, [currentTask.blockedBy, tasks]);
+  const confirmStatusChange = async () => {
+    if (!pendingStatusChange) return;
+    const comment = statusChangeReason.trim() || 'Status updated';
+    updateTask(currentTask.id, { status: pendingStatusChange.newStatus });
+    setPendingStatusChange(null);
+    setStatusChangeCommentOpen(false);
+    setStatusChangeReason('');
+    try {
+      await addTaskCommentApi(currentTask.id, comment);
+      setComments(prev => [{ id: 'temp', userId: '', content: comment, createdAt: new Date().toISOString() }, ...prev]);
+      updateTask(currentTask.id, { commentCount: (currentTask.commentCount ?? 0) + 1 });
+    } catch {
+      // Status already updated locally
+    }
+  };
 
-  const isBlocked = activeBlockers.length > 0 && currentTask.status !== 'done';
+  const cancelStatusChange = () => {
+    setPendingStatusChange(null);
+    setStatusChangeCommentOpen(false);
+    setStatusChangeReason('');
+  };
+
+  const isBlocked = currentTask ? activeBlockers.length > 0 && currentTask.status !== 'done' : false;
+
+  if (!currentTask) return null;
 
   const toggleAssignee = (id: string) => {
     const next = currentTask.assignees.includes(id) ? currentTask.assignees.filter(x => x !== id) : [...currentTask.assignees, id];
@@ -123,7 +166,26 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
     setNewSubtask('');
   };
 
+  const addComment = async () => {
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+    if (!import.meta.env.VITE_API_URL) {
+      toast.info('API not configured');
+      return;
+    }
+    try {
+      const created = await addTaskCommentApi(currentTask.id, trimmed);
+      setComments(prev => [created, ...prev]);
+      setNewComment('');
+      updateTask(currentTask.id, { commentCount: (currentTask.commentCount ?? 0) + 1 });
+      toast.success('Comment added');
+    } catch {
+      toast.error('Failed to add comment');
+    }
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
@@ -148,7 +210,17 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Flag className="h-3 w-3" /> Status</label>
-                <Select value={currentTask.status} onValueChange={v => handleChange('status', v as TaskStatus)}>
+                <Select
+                  value={currentTask.status}
+                  onValueChange={v => {
+                    if (import.meta.env.VITE_API_URL) {
+                      setPendingStatusChange({ newStatus: v as TaskStatus });
+                      setStatusChangeCommentOpen(true);
+                    } else {
+                      handleChange('status', v as TaskStatus);
+                    }
+                  }}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(STATUS_CONFIG).map(([k, v]) => (
@@ -337,6 +409,54 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
             </div>
 
             <div className="space-y-2">
+              <label className="text-xs text-muted-foreground flex items-center gap-1"><MessageSquare className="h-3 w-3" /> Comments <span className="text-foreground font-medium">({commentsLoading ? '…' : comments.length})</span></label>
+              <div className="flex gap-2">
+                <Input
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      addComment();
+                    }
+                  }}
+                  placeholder="Add a comment..."
+                  className="text-sm"
+                />
+                <Button type="button" variant="secondary" onClick={addComment} disabled={!newComment.trim()}>
+                  Add
+                </Button>
+              </div>
+              {commentsLoading ? (
+                <div className="text-xs text-muted-foreground">Loading comments...</div>
+              ) : comments.length > 0 ? (
+                <ScrollArea className="h-32 rounded-md border border-border">
+                  <div className="p-3 space-y-3">
+                    {comments.map(c => {
+                      const member = teamMembers.find(m => m.id === c.userId);
+                      return (
+                        <div key={c.id} className="flex gap-2">
+                          <UserAvatar userId={c.userId} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-card-foreground">{member?.name ?? 'Unknown'}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(c.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-0.5 break-words">{c.content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-xs text-muted-foreground py-2">No comments yet.</div>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <label className="text-xs text-muted-foreground flex items-center gap-1"><Link2 className="h-3 w-3" /> Blocked by (optional)</label>
               <ScrollArea className="h-44 rounded-md border border-border">
                 <div className="p-3 space-y-2">
@@ -380,5 +500,28 @@ export function TaskQuickEdit({ task, open, onOpenChange }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={statusChangeCommentOpen} onOpenChange={open => !open && cancelStatusChange()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Comment for status change</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Changing status to <strong>{pendingStatusChange && STATUS_CONFIG[pendingStatusChange.newStatus]?.label}</strong>. Add a comment (optional):
+        </p>
+        <Textarea
+          value={statusChangeReason}
+          onChange={e => setStatusChangeReason(e.target.value)}
+          placeholder="Reason or comment..."
+          rows={3}
+          className="resize-none"
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={cancelStatusChange}>Cancel</Button>
+          <Button onClick={() => void confirmStatusChange()}>Confirm</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

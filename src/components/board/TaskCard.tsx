@@ -6,7 +6,13 @@ import { UserAvatar } from '@/components/shared/UserAvatar';
 import { MessageSquare, Paperclip, Calendar, Link2, GripVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }) {
+interface TaskCardProps {
+  task: Task;
+  onClick?: () => void;
+  onCommentClick?: (e: React.MouseEvent) => void;
+}
+
+export function TaskCard({ task, onClick, onCommentClick }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: 'task', task },
@@ -84,11 +90,25 @@ export function TaskCard({ task, onClick }: { task: Task; onClick?: () => void }
               <Link2 className="h-3 w-3" /> Blocked{blockerCount > 1 ? ` (${blockerCount})` : ''}
             </span>
           )}
-          {task.commentCount > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px]">
-              <MessageSquare className="h-3 w-3" /> {task.commentCount}
-            </span>
-          )}
+          <span
+            role="button"
+            tabIndex={0}
+            className="flex items-center gap-0.5 text-[10px] cursor-pointer hover:text-foreground transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCommentClick?.(e);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onCommentClick?.(e as unknown as React.MouseEvent);
+              }
+            }}
+            title="View and add comments"
+          >
+            <MessageSquare className="h-3 w-3" /> {task.commentCount ?? 0}
+          </span>
           {attachmentCount > 0 && (
             <span className="flex items-center gap-0.5 text-[10px]">
               <Paperclip className="h-3 w-3" /> {attachmentCount}

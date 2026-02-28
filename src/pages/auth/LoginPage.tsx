@@ -6,7 +6,7 @@ import { useApp } from '@/context/AppContext';
 import RoleSelector, { Role } from '@/components/auth/RoleSelector';
 import MicrosoftLoginButton from '@/components/auth/MicrosoftLoginButton';
 import EmailLoginForm from '@/components/auth/EmailLoginForm';
-import { redirectToMicrosoftLogin } from '@/api/auth';
+import { redirectToMicrosoftLogin, loginWithEmail } from '@/api/auth';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -17,19 +17,39 @@ const LoginPage = () => {
         redirectToMicrosoftLogin();
     };
 
-    const handleEmailLogin = (email: string, pass: string) => {
+    const handleEmailLogin = async (email: string, pass: string) => {
+        const roleLabel = selectedRole.replace('_', ' ');
+        const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
+
+        if (hasApi) {
+            const result = await loginWithEmail(email, pass);
+            if (result) {
+                setUser(
+                    result.user
+                        ? { name: result.user.name, email: result.user.email, role: result.user.role, avatar: result.user.avatar }
+                        : { name: 'System Admin', email, role: roleLabel }
+                );
+                toast.success(`Logged in successfully as ${roleLabel}`);
+                switch (selectedRole) {
+                    case 'Admin':
+                        navigate('/admin');
+                        break;
+                    case 'Project_Manager':
+                        navigate('/manager');
+                        break;
+                    case 'Team_Member':
+                        navigate('/member');
+                        break;
+                    default:
+                        navigate('/dashboard');
+                }
+                return;
+            }
+        }
+
         if (email === 'admin@gmail.com' && pass === 'admin@123') {
-            const roleLabel = selectedRole.replace('_', ' ');
-
-            // Update global user state
-            setUser({
-                name: 'System Admin',
-                email: email,
-                role: roleLabel,
-            });
-
+            setUser({ name: 'System Admin', email, role: roleLabel });
             toast.success(`Logged in successfully as ${roleLabel}`);
-
             switch (selectedRole) {
                 case 'Admin':
                     navigate('/admin');
@@ -44,7 +64,7 @@ const LoginPage = () => {
                     navigate('/');
             }
         } else {
-            toast.error("Invalid credentials.");
+            toast.error('Invalid credentials.');
         }
     };
 
