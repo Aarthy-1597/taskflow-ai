@@ -59,7 +59,7 @@ function toTaskModel(t: any, fallbackProjectId?: string): Task {
       : Array.isArray(t?.blockedBy)
       ? t.blockedBy.map((id: any) => String(id))
       : [],
-    commentCount: typeof t?.commentCount === "number" ? t.commentCount : 0,
+    commentCount: typeof t?.commentCount === "number" ? t.commentCount : typeof t?.comment_count === "number" ? t.comment_count : 0,
     order: typeof t?.order === "number" ? t.order : 0,
   };
 }
@@ -452,13 +452,13 @@ function toTaskComment(c: any): TaskComment {
 }
 
 export async function listTaskCommentsApi(taskId: string): Promise<TaskComment[]> {
-  const res = await apiGet<any>(`/api/comments/task/${taskId}`);
+  const res = await apiGet<any>(`/api/tasks/${taskId}/comments`);
   const comments = Array.isArray(res) ? res : res.comments ?? [];
   return comments.map(toTaskComment);
 }
 
 export async function addTaskCommentApi(taskId: string, content: string): Promise<TaskComment> {
-  const res = await apiPost<any>(`/api/comments/task/${taskId}`, { content });
+  const res = await apiPost<any>(`/api/tasks/${taskId}/comments`, { content });
   return toTaskComment(res.comment ?? res);
 }
 

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DndContext, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCorners, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { TaskStatus, TaskPriority, PRIORITY_CONFIG } from '@/data/types';
 import { useApp } from '@/context/AppContext';
 import { KanbanColumn } from '@/components/board/KanbanColumn';
 import { TaskCard } from '@/components/board/TaskCard';
 import { TaskQuickEdit } from '@/components/board/TaskQuickEdit';
+import { TaskCommentsDialog } from '@/components/board/TaskCommentsDialog';
 import { BoardFilters, SwimLane } from '@/components/board/BoardFilters';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { motion } from 'framer-motion';
@@ -16,6 +17,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus } from 'lucide-react';
+import { addTaskCommentApi, listTaskCommentsApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 const columns: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done'];
 
@@ -29,6 +32,11 @@ export default function BoardPage() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [labelFilter, setLabelFilter] = useState('all');
   const [swimLane, setSwimLane] = useState<SwimLane>('none');
+
+  const [statusChangeDialog, setStatusChangeDialog] = useState<{ taskId: string; taskTitle: string; newStatus: TaskStatus; prevStatus: TaskStatus } | null>(null);
+  const [statusChangeComment, setStatusChangeComment] = useState('');
+  const [statusChangeSubmitting, setStatusChangeSubmitting] = useState(false);
+  const [taskForComments, setTaskForComments] = useState<Task | null>(null);
 
   const projectTasks = selectedProjectId ? tasks.filter(t => t.projectId === selectedProjectId) : tasks;
 
@@ -44,18 +52,59 @@ export default function BoardPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const overId = over.id as string;
-    if (columns.includes(overId as TaskStatus)) {
-      updateTask(active.id as string, { status: overId as TaskStatus });
-    } else {
-      const overTask = tasks.find(t => t.id === overId);
-      if (overTask) updateTask(active.id as string, { status: overTask.status });
+
+  const handleStatusChangeConfirm = async () => {
+    if (!statusChangeDialog) return;
+    const { taskId } = statusChangeDialog;
+    const comment = statusChangeComment.trim() || 'Status updated';
+    setStatusChangeSubmitting(true);
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.env.VITE_API_URL) {
+        await addTaskCommentApi(taskId, comment);
+        const task = tasks.find(t => t.id === taskId);
+        if (task) updateTask(taskId, { commentCount: (task.commentCount ?? 0) + 1 });
+      }
+      toast.success('Comment added');
+    } catch (err) {
+      toast.error('Failed to add comment');
+    } finally {
+      setStatusChangeSubmitting(false);
+      setStatusChangeDialog(null);
+      setStatusChangeComment('');
     }
   };
-  const handleDragEnd = (_event: DragEndEvent) => setActiveId(null);
+
+  const handleStatusChangeCancel = () => {
+    if (statusChangeDialog) {
+      updateTask(statusChangeDialog.taskId, { status: statusChangeDialog.prevStatus });
+      setStatusChangeDialog(null);
+      setStatusChangeComment('');
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+    const overId = over.id as string;
+    let newStatus: TaskStatus | null = null;
+    if (columns.includes(overId as TaskStatus)) {
+      newStatus = overId as TaskStatus;
+    } else {
+      const overTask = tasks.find(t => t.id === overId);
+      if (overTask) newStatus = overTask.status;
+    }
+    if (newStatus) {
+      const task = tasks.find(t => t.id === active.id);
+      if (task && task.status !== newStatus) {
+        const prevStatus = task.status;
+        updateTask(task.id, { status: newStatus });
+        if (typeof import.meta !== 'undefined' && import.meta.env.VITE_API_URL) {
+          setStatusChangeDialog({ taskId: task.id, taskTitle: task.title, newStatus, prevStatus });
+        }
+      }
+    }
+  };
 
   const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
 
@@ -93,6 +142,23 @@ export default function BoardPage() {
     const main = document.querySelector('main');
     if (main) main.scrollTo({ top: 0, left: 0 });
   }, []);
+
+  const filteredTaskIds = useMemo(() => filteredTasks.map(t => t.id).sort().join(','), [filteredTasks]);
+
+  // Sync comment counts from API (same source as edit popup) so cards show correct count
+  useEffect(() => {
+    if (!import.meta.env.VITE_API_URL || filteredTasks.length === 0) return;
+    filteredTasks.forEach(task => {
+      listTaskCommentsApi(task.id)
+        .then(comments => {
+          const count = comments.length;
+          if (count !== (task.commentCount ?? 0)) {
+            updateTask(task.id, { commentCount: count });
+          }
+        })
+        .catch(() => {});
+    });
+  }, [filteredTaskIds, filteredTasks, updateTask]);
 
   return (
     <AppLayout>
@@ -139,7 +205,7 @@ export default function BoardPage() {
           />
         </div>
 
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {swimLaneGroups.map(group => (
             <div key={group.key} className="mb-6 flex-1 min-h-0 flex flex-col">
               {group.label && (
@@ -151,7 +217,8 @@ export default function BoardPage() {
                     key={`${group.key}-${status}`}
                     status={status}
                     tasks={group.tasks.filter(t => t.status === status)}
-                    onTaskClick={setEditTask}
+                    onTaskClick={(task) => setTaskForComments(task)}
+                    onCommentClick={(task) => setTaskForComments(task)}
                     onCreateTask={openCreateForStatus}
                   />
                 ))}
@@ -162,6 +229,40 @@ export default function BoardPage() {
         </DndContext>
 
         <TaskQuickEdit task={editTask} open={!!editTask} onOpenChange={open => !open && setEditTask(null)} />
+        <TaskCommentsDialog
+          task={taskForComments}
+          open={!!taskForComments}
+          onOpenChange={open => !open && setTaskForComments(null)}
+          onEditTask={(t) => { setTaskForComments(null); setEditTask(t); }}
+        />
+
+        <Dialog open={!!statusChangeDialog} onOpenChange={open => !open && handleStatusChangeCancel()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add comment for status change</DialogTitle>
+            </DialogHeader>
+            {statusChangeDialog && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Moved &quot;{statusChangeDialog.taskTitle}&quot; to {statusChangeDialog.newStatus.replace('_', ' ')}. Add a reason or comment (required):
+                </p>
+                <Textarea
+                  value={statusChangeComment}
+                  onChange={e => setStatusChangeComment(e.target.value)}
+                  placeholder="e.g. Completed the implementation, ready for review..."
+                  rows={3}
+                  className="resize-none"
+                />
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleStatusChangeCancel}>Cancel</Button>
+                  <Button onClick={handleStatusChangeConfirm} disabled={statusChangeSubmitting || !statusChangeComment.trim()}>
+                    {statusChangeSubmitting ? 'Adding...' : 'Add Comment'}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogContent className="sm:max-w-xl overflow-y-auto scrollbar-hide max-h-[90vh]">

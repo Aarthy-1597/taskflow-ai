@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { canViewBilling } from '@/lib/utils';
+import { canViewBilling, isMemberOnly } from '@/lib/utils';
 import { FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -51,6 +51,9 @@ const PAGE_SIZES = [10, 25, 50, 100];
 export default function TimePage() {
   const { timeEntries, tasks, projects, getTeamMember, deleteTimeEntry, refreshTimeEntries, user, currentUserId } = useApp();
   const showBilling = canViewBilling(user?.role);
+  const memberOnly = isMemberOnly(user?.role);
+  const effectiveUserId = user?.id ?? currentUserId;
+
   const [formOpen, setFormOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<TimeEntry | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -69,14 +72,18 @@ export default function TimePage() {
 
   useEffect(() => {
     const params: Record<string, string> = {};
-    if (userFilter !== 'all') params.user_id = userFilter;
+    const uf = memberOnly ? effectiveUserId : userFilter;
+    if (uf !== 'all' && uf) params.user_id = uf;
     if (projectFilter !== 'all') params.project_id = projectFilter;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     refreshTimeEntries(Object.keys(params).length ? params : undefined);
-  }, [userFilter, projectFilter, dateFrom, dateTo, refreshTimeEntries]);
+  }, [memberOnly, effectiveUserId, userFilter, projectFilter, dateFrom, dateTo, refreshTimeEntries]);
 
-  const filteredEntries = timeEntries;
+  const filteredEntries = useMemo(() => {
+    if (!memberOnly || !effectiveUserId) return timeEntries;
+    return timeEntries.filter(e => e.userId === effectiveUserId);
+  }, [timeEntries, memberOnly, effectiveUserId]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
   const paginatedEntries = useMemo(() => {
@@ -172,7 +179,7 @@ export default function TimePage() {
 
         <div className="flex flex-wrap items-end gap-3">
           <TimesheetFilters
-            userFilter={userFilter}
+            userFilter={memberOnly ? effectiveUserId : userFilter}
             projectFilter={projectFilter}
             dateFrom={dateFrom}
             dateTo={dateTo}
@@ -181,7 +188,9 @@ export default function TimePage() {
             onProjectChange={setProjectFilter}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
-            label="Filters"
+            label="Timesheet"
+            hideUserFilter={memberOnly}
+            currentUserName={memberOnly ? user?.name : undefined}
           />
         </div>
 
@@ -330,7 +339,7 @@ export default function TimePage() {
               tasks={tasks}
               projects={projects}
               canViewBilling={showBilling}
-              userFilter={userFilter}
+              userFilter={memberOnly ? effectiveUserId : userFilter}
               projectFilter={projectFilter}
               dateFrom={dateFrom}
               dateTo={dateTo}

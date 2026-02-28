@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { io as socketClient } from 'socket.io-client';
 
 export interface User {
+  id?: string;
   name: string;
   email: string;
   role: string;
@@ -140,7 +141,7 @@ function ensureTaskShape(t: any): Task {
     attachments,
     subtasks,
     blockedBy,
-    commentCount: typeof t?.commentCount === 'number' ? t.commentCount : 0,
+    commentCount: typeof t?.commentCount === 'number' ? t.commentCount : typeof (t as any)?.comment_count === 'number' ? (t as any).comment_count : 0,
     order: typeof t?.order === 'number' ? t.order : 0,
   };
 }
@@ -332,9 +333,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateTask = (id: string, updates: Partial<Task>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
 
+    const isCommentCountOnly = Object.keys(updates).length === 1 && 'commentCount' in updates;
+    if (isCommentCountOnly) return;
+
     if (typeof import.meta !== 'undefined' && import.meta.env.VITE_API_URL) {
       void apiUpdateTask(id, updates).then(remote => {
-        setTasks(prev => prev.map(t => t.id === id ? ensureTaskShape(remote) : t));
+        setTasks(prev => prev.map(t => {
+          if (t.id !== id) return t;
+          const shaped = ensureTaskShape(remote);
+          const remoteCount = typeof (remote as any)?.commentCount === 'number' ? (remote as any).commentCount : typeof (remote as any)?.comment_count === 'number' ? (remote as any).comment_count : undefined;
+          return { ...shaped, commentCount: remoteCount ?? t.commentCount ?? 0 };
+        }));
       }).catch(err => {
         console.error('Failed to sync task update to API', err);
       });
