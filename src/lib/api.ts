@@ -276,8 +276,58 @@ export async function fetchCurrentUser() {
     userId: string;
     email: string;
     role: string;
-    microsoftId: string;
+    microsoftId?: string;
     displayName: string;
+    avatarUrl?: string;
+  }>;
+}
+
+/** PATCH /auth/me - Update current user profile (name, email only; use updateProfileAvatarApi for image) */
+export async function updateProfileApi(profile: {
+  displayName?: string;
+  name?: string;
+  email?: string;
+}) {
+  const res = await fetch(`${API_URL}/auth/me`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      displayName: profile.displayName ?? profile.name,
+      email: profile.email,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Profile update failed: ${res.status}`);
+  }
+  return res.json() as Promise<{
+    userId: string;
+    email: string;
+    role: string;
+    displayName: string;
+    avatarUrl?: string;
+  }>;
+}
+
+/** PATCH /auth/me/avatar - Update only profile image (separate API so /auth/me stays stable) */
+export async function updateProfileAvatarApi(avatarUrl: string) {
+  const res = await fetch(`${API_URL}/auth/me/avatar`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ avatarUrl }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Avatar update failed: ${res.status}`);
+  }
+  return res.json() as Promise<{
+    userId: string;
+    email: string;
+    role: string;
+    displayName: string;
+    avatarUrl?: string;
   }>;
 }
 

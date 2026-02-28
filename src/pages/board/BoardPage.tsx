@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DndContext, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCorners, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { TaskStatus, TaskPriority, PRIORITY_CONFIG } from '@/data/types';
 import { useApp } from '@/context/AppContext';
@@ -88,9 +88,15 @@ export default function BoardPage() {
   const effectiveProjectId = selectedProjectId ?? projects[0]?.id ?? null;
   const projectOptions = [{ id: 'all', name: 'All Projects' }, ...projects.map(p => ({ id: p.id, name: p.name }))];
 
+  // Scroll main content to top when Board page is shown (e.g. when clicking Board in sidebar)
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) main.scrollTo({ top: 0, left: 0 });
+  }, []);
+
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-6 min-h-full flex flex-col">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
@@ -135,11 +141,11 @@ export default function BoardPage() {
 
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           {swimLaneGroups.map(group => (
-            <div key={group.key} className="mb-6">
+            <div key={group.key} className="mb-6 flex-1 min-h-0 flex flex-col">
               {group.label && (
-                <h2 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">{group.label}</h2>
+                <h2 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1 shrink-0">{group.label}</h2>
               )}
-              <div className="flex gap-4 overflow-x-auto pb-4">
+              <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4">
                 {columns.map(status => (
                   <KanbanColumn
                     key={`${group.key}-${status}`}
@@ -158,7 +164,7 @@ export default function BoardPage() {
         <TaskQuickEdit task={editTask} open={!!editTask} onOpenChange={open => !open && setEditTask(null)} />
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="sm:max-w-xl overflow-y-auto scrollbar-hide max-h-[90vh]">
             <DialogHeader>
               <DialogTitle className="font-display text-base">New Task</DialogTitle>
             </DialogHeader>
@@ -224,8 +230,8 @@ function CreateTaskForm({
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Project</label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectIdLocal}>
@@ -253,10 +259,10 @@ function CreateTaskForm({
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Description</label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="What needs to be done?" />
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="What needs to be done?" className="resize-none min-h-0" />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Priority</label>
             <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
@@ -278,17 +284,17 @@ function CreateTaskForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Assignees</label>
-            <div className="rounded-md border border-border">
-              <div className="p-3 space-y-2">
+            <div className="rounded-md border border-border max-h-28 overflow-y-auto scrollbar-hide">
+              <div className="p-2 space-y-0.5">
                 {teamMembers.map(m => (
                   <button
                     type="button"
                     key={m.id}
                     onClick={() => toggle(m.id, setAssignees, assignees)}
-                    className="w-full flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                    className="w-full flex items-center justify-between rounded px-2 py-1 hover:bg-muted/50 transition-colors"
                   >
                     <div className="min-w-0 text-left">
                       <div className="text-sm text-card-foreground truncate">{m.name}</div>
@@ -301,19 +307,19 @@ function CreateTaskForm({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Blocked by (optional)</label>
-            <div className="rounded-md border border-border">
-              <div className="p-3 space-y-2">
+            <div className="rounded-md border border-border max-h-28 overflow-y-auto scrollbar-hide">
+              <div className="p-2 space-y-0.5">
                 {blockerCandidates.length === 0 && (
-                  <div className="text-xs text-muted-foreground">No tasks available.</div>
+                  <div className="text-xs text-muted-foreground py-2">No tasks available.</div>
                 )}
                 {blockerCandidates.map(t => (
                   <button
                     type="button"
                     key={t.id}
                     onClick={() => toggle(t.id, setBlockedBy, blockedBy)}
-                    className="w-full flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                    className="w-full flex items-center justify-between rounded px-2 py-1 hover:bg-muted/50 transition-colors"
                   >
                     <div className="min-w-0 text-left">
                       <div className="text-sm text-card-foreground truncate">{t.title}</div>
@@ -336,7 +342,7 @@ function CreateTaskForm({
         )}
       </div>
 
-      <DialogFooter className="mt-6">
+      <DialogFooter className="mt-4">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
         <Button
           disabled={!canSave}

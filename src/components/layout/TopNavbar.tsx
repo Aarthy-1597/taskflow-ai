@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { listNotificationsApi, markNotificationReadApi, type AppNotification } from '@/lib/api';
+import { listNotificationsApi, markNotificationReadApi, updateProfileApi, updateProfileAvatarApi, type AppNotification } from '@/lib/api';
 import { io as socketClient } from 'socket.io-client';
 
 const themeIcons: Record<ThemeMode, typeof Sun> = { light: Sun, dark: Moon, minimal: Minimize2 };
@@ -94,19 +94,51 @@ export function TopNavbar() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || '??';
   };
 
-  const handleProfileSave = () => {
+  const handleProfileSave = async () => {
     if (!displayName.trim() || !email.trim()) {
       toast.error('Name and email are required');
       return;
     }
-    setUser({
-      name: displayName.trim(),
-      email: email.trim(),
-      role: user?.role || 'Member',
-      avatar: avatarPreview,
-    });
-    toast.success('Profile updated');
-    setProfileOpen(false);
+    const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
+    if (hasApi) {
+      try {
+        // Update name/email via PATCH /auth/me (keeps /auth/me response small)
+        const updated = await updateProfileApi({
+          displayName: displayName.trim(),
+          email: email.trim(),
+        });
+        // Update profile image via separate PATCH /auth/me/avatar so /auth/me does not error
+        if (avatarPreview && avatarPreview !== user?.avatar) {
+          const avatarRes = await updateProfileAvatarApi(avatarPreview);
+          setUser({
+            name: updated.displayName,
+            email: updated.email,
+            role: user?.role || 'Member',
+            avatar: avatarRes.avatarUrl ?? avatarPreview,
+          });
+        } else {
+          setUser({
+            name: updated.displayName,
+            email: updated.email,
+            role: user?.role || 'Member',
+            avatar: avatarPreview ?? updated.avatarUrl,
+          });
+        }
+        toast.success('Profile updated');
+        setProfileOpen(false);
+      } catch (e) {
+        toast.error((e as Error)?.message ?? 'Failed to update profile');
+      }
+    } else {
+      setUser({
+        name: displayName.trim(),
+        email: email.trim(),
+        role: user?.role || 'Member',
+        avatar: avatarPreview,
+      });
+      toast.success('Profile updated');
+      setProfileOpen(false);
+    }
   };
 
   const handleAvatarChange: ChangeEventHandler<HTMLInputElement> = (e) => {

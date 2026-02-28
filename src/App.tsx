@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import BoardPage from "./pages/board/BoardPage";
 import ProjectsPage from "./pages/projects/ProjectsPage";
@@ -29,23 +30,25 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/board" element={<BoardPage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/notes" element={<NotesPage />} />
-            <Route path="/time" element={<TimePage />} />
-            <Route path="/automation" element={<AutomationPage />} />
-            <Route path="/team" element={<TeamPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/manager" element={<ProjectManagerPage />} />
-            <Route path="/member" element={<TeamMemberPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/board" element={<BoardPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/notes" element={<NotesPage />} />
+              <Route path="/time" element={<TimePage />} />
+              <Route path="/automation" element={<AutomationPage />} />
+              <Route path="/team" element={<TeamPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/manager" element={<ProjectManagerPage />} />
+              <Route path="/member" element={<TeamMemberPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </AppProvider>
     </TooltipProvider>

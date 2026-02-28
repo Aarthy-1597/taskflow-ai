@@ -250,6 +250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           name: me.displayName,
           email: me.email,
           role: me.role,
+          avatar: me.avatarUrl,
         });
       } catch {
         // Ignore if not logged in; user stays null
