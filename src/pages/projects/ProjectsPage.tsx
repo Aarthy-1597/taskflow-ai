@@ -3,8 +3,9 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { motion } from 'framer-motion';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { Calendar, Plus, Trash2, Pencil } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { listProjectsApi } from '@/lib/api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,9 +17,38 @@ import { Project, ProjectStatus } from '@/data/types';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { projects, teamMembers, createProject, updateProject, deleteProject, setSelectedProjectId } = useApp();
+  const { projects, setProjects, teamMembers, createProject, updateProject, deleteProject, setSelectedProjectId } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load projects from API when opening the Projects page
+  useEffect(() => {
+    let cancelled = false;
+    const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
+    if (!hasApi) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    listProjectsApi()
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setProjects(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          // Keep existing context projects on error
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setProjects]);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -108,7 +138,12 @@ export default function ProjectsPage() {
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project, i) => (
+          {loading ? (
+            <p className="text-sm text-muted-foreground col-span-full py-8 text-center">Loading projects…</p>
+          ) : projects.length === 0 ? (
+            <p className="text-sm text-muted-foreground col-span-full py-8 text-center">No projects yet. Create one to get started.</p>
+          ) : (
+          projects.map((project, i) => (
             <motion.div
               key={project.id}
               initial={{ opacity: 0, y: 20 }}
@@ -169,7 +204,8 @@ export default function ProjectsPage() {
                 </span>
               </div>
             </motion.div>
-          ))}
+          ))
+          )}
         </div>
       </div>
 

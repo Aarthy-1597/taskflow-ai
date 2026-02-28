@@ -135,6 +135,13 @@ export async function apiDelete(path: string): Promise<void> {
   await request<void>(path, { method: "DELETE" });
 }
 
+/** GET /api/projects — list all projects (for Projects page) */
+export async function listProjectsApi(): Promise<Project[]> {
+  const raw = await request<any>("/api/projects");
+  const arr = Array.isArray(raw) ? raw : raw?.projects ?? [];
+  return arr.map(toProjectModel);
+}
+
 export async function fetchInitialBoardData() {
   const [projectsRaw, tasksRaw, usersRaw] = await Promise.all([
     request<any>("/api/projects"),
@@ -142,7 +149,7 @@ export async function fetchInitialBoardData() {
     request<any>("/api/users"),
   ]);
 
-  const projects = (Array.isArray(projectsRaw) ? projectsRaw : projectsRaw.projects ?? []).map(toProjectModel);
+  const projects = (Array.isArray(projectsRaw) ? projectsRaw : projectsRaw?.projects ?? []).map(toProjectModel);
 
   const tasks = (Array.isArray(tasksRaw) ? tasksRaw : tasksRaw.tasks ?? []).map((t: any) =>
     toTaskModel(t)
@@ -426,6 +433,22 @@ export async function createAutomationRuleApi(rule: Omit<AutomationRule, "id">):
   };
   const res = await apiPost<any>("/api/automation-rules", body);
   return toAutomationRuleModel(res);
+}
+
+export async function deleteAutomationRuleApi(id: string): Promise<void> {
+  await request<void>(`/api/automation-rules/${id}`, { method: "DELETE" });
+}
+
+/** POST /api/automation-rules/:id/test-teams — send a test message to Teams webhook for this rule (only for send_teams_message rules) */
+export async function testAutomationRuleTeamsApi(id: string): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${API_URL}/api/automation-rules/${id}/test-teams`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Test failed: ${res.status}`);
+  return data;
 }
 
 export interface TaskComment {

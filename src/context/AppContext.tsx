@@ -2,7 +2,7 @@ import { useState, createContext, useContext, ReactNode, useEffect, useCallback 
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, TeamMember, TaskAttachment, Subtask } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
-import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchCurrentUser, fetchInitialBoardData, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
+import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchCurrentUser, fetchInitialBoardData, listActivitiesApi, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
 import { logout as apiLogout } from '@/api/auth';
 import * as timeEntriesApi from '@/api/timeEntries';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ interface AppState {
   teamMembers: TeamMember[];
   timeEntries: TimeEntry[];
   automationRules: AutomationRule[];
+  setAutomationRules: (rules: AutomationRule[] | ((prev: AutomationRule[]) => AutomationRule[])) => void;
   activities: Activity[];
   notes: Note[];
   selectedProjectId: string | null;
@@ -176,7 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(initialTimeEntries);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialRules);
-  const [activities] = useState<Activity[]>(initialActivities);
+  const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return 'p1';
@@ -191,7 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEYS.user);
     return stored ? JSON.parse(stored) : null;
   });
-  const currentUserId = '1';
+  const [currentUserId, setCurrentUserId] = useState<string>('1');
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
@@ -252,8 +253,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
           role: me.role,
           avatar: me.avatarUrl,
         });
+        setCurrentUserId(me.userId ?? '1');
       } catch {
         // Ignore if not logged in; user stays null
+      }
+
+      try {
+        const apiActivities = await listActivitiesApi();
+        if (apiActivities.length > 0) {
+          const mapped: Activity[] = apiActivities.map(a => ({
+            id: a.id,
+            type: (a.action as Activity['type']) || 'created',
+            userId: a.userId,
+            taskId: a.taskId ?? '',
+            description: a.userName ? `${a.userName} ${a.action}` : String(a.action),
+            timestamp: a.createdAt,
+          }));
+          setActivities(mapped);
+        }
+      } catch {
+        // Keep mock activities if API fails
+      }
+
+      try {
+        await refreshTimeEntries();
+      } catch {
+        // Keep mock time entries if API fails
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -580,6 +605,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       teamMembers,
       timeEntries,
       automationRules,
+      setAutomationRules,
       activities,
       notes,
       selectedProjectId,

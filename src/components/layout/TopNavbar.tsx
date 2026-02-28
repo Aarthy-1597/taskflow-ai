@@ -217,7 +217,7 @@ export function TopNavbar() {
           <DropdownMenuContent align="end" className="w-80 mt-2 bg-[#0C0C12] border-white/10 text-white shadow-2xl backdrop-blur-xl">
             <DropdownMenuLabel className="text-xs text-gray-400">Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-white/5" />
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-80 overflow-y-auto scrollbar-hide">
               {notifications.length === 0 ? (
                 <div className="px-3 py-4 text-xs text-gray-400">No notifications yet</div>
               ) : (
