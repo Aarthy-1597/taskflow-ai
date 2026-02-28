@@ -1,6 +1,7 @@
 import type { Activity, AutomationRule, Note, Project, Task, TeamMember } from "@/data/types";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const AUTH_TOKEN_KEY = "appToken";
 
 function toProjectModel(p: any): Project {
   return {
@@ -83,11 +84,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!API_URL) {
     throw new Error("VITE_API_URL is not configured");
   }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  const token = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
+    headers,
     credentials: "include",
     ...init,
   });
@@ -271,10 +277,14 @@ export async function apiDeleteTask(id: string): Promise<void> {
   await request<void>(`/api/tasks/${id}`, { method: "DELETE" });
 }
 
-// Auth / user helpers
+// Auth / user helpers (path is /api/auth/me; send stored token so /me works when cross-origin cookies are blocked)
 export async function fetchCurrentUser() {
-  const res = await fetch(`${API_URL}/auth/me`, {
+  const headers: Record<string, string> = {};
+  const token = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/api/auth/me`, {
     credentials: "include",
+    headers,
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch current user: ${res.status}`);
@@ -289,16 +299,19 @@ export async function fetchCurrentUser() {
   }>;
 }
 
-/** PATCH /auth/me - Update current user profile (name, email only; use updateProfileAvatarApi for image) */
+/** PATCH /api/auth/me - Update current user profile (name, email only; use updateProfileAvatarApi for image) */
 export async function updateProfileApi(profile: {
   displayName?: string;
   name?: string;
   email?: string;
 }) {
-  const res = await fetch(`${API_URL}/auth/me`, {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/api/auth/me`, {
     method: "PATCH",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       displayName: profile.displayName ?? profile.name,
       email: profile.email,
@@ -317,12 +330,15 @@ export async function updateProfileApi(profile: {
   }>;
 }
 
-/** PATCH /auth/me/avatar - Update only profile image (separate API so /auth/me stays stable) */
+/** PATCH /api/auth/me/avatar - Update only profile image (separate API so /auth/me stays stable) */
 export async function updateProfileAvatarApi(avatarUrl: string) {
-  const res = await fetch(`${API_URL}/auth/me/avatar`, {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/api/auth/me/avatar`, {
     method: "PATCH",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ avatarUrl }),
   });
   if (!res.ok) {

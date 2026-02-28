@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,7 +24,27 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const AUTH_TOKEN_KEY = "appToken";
+
+/** Read token from post-login redirect hash (#token=...) and store for API Authorization header (fixes 401 when cross-origin cookies are blocked, e.g. Render + Netlify). */
+export function getStoredAuthToken(): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  return sessionStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+const App = () => {
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith("#token=")) {
+      try {
+        const token = decodeURIComponent(hash.slice(7).trim());
+        if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+      } catch (_) {}
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AppProvider>
@@ -53,6 +74,7 @@ const App = () => (
       </AppProvider>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

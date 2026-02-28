@@ -42,15 +42,23 @@ export async function logout(): Promise<void> {
     }
   } catch {
     // Network error or backend unavailable - still clear local state
+  } finally {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('appToken');
+    }
   }
 }
 
 /** GET /api/auth/me - Fetch current user from backend */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
+    const headers: Record<string, string> = {};
+    const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('appToken') : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(AUTH_ENDPOINTS.me, {
       credentials: 'include',
       cache: 'no-store', // Avoid 304 for fresh user data
+      headers,
     });
     if (!res.ok) {
       if (res.status === 401 || res.status === 404) return null;
