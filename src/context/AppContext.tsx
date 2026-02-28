@@ -48,7 +48,7 @@ interface AppState {
   addNote: (note: Note) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
   deleteNote: (id: string) => void;
-  addTimeEntry: (entry: Omit<TimeEntry, 'id'> | TimeEntry) => void;
+  addTimeEntry: (entry: (Omit<TimeEntry, 'id'> & { projectId?: string }) | TimeEntry) => void;
   updateTimeEntry: (id: string, updates: Partial<TimeEntry>) => void;
   deleteTimeEntry: (id: string) => void;
   refreshTimeEntries: (params?: timeEntriesApi.ListTimeEntriesParams) => Promise<void>;
@@ -473,21 +473,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const addTimeEntry = (entry: Omit<TimeEntry, 'id'> | TimeEntry) => {
+  const addTimeEntry = (entry: (Omit<TimeEntry, 'id'> & { projectId?: string }) | TimeEntry) => {
     const hasId = 'id' in entry && entry.id;
     if (hasId) {
       setTimeEntries(prev => [entry as TimeEntry, ...prev]);
       return;
     }
-    const e = entry as Omit<TimeEntry, 'id'>;
+    const e = entry as Omit<TimeEntry, 'id'> & { projectId?: string };
     const task = tasks.find(t => t.id === e.taskId);
+    const projectId = e.projectId ?? task?.projectId ?? '';
     timeEntriesApi.createTimeEntry({
       task_id: e.taskId,
       user_id: e.userId,
-      project_id: task?.projectId ?? '',
+      project_id: projectId,
       hours: e.hours,
       date: e.date,
-      description: e.description,
+      description: e.description ?? '',
       billable: e.billable,
     }).then(created => {
       setTimeEntries(prev => [created, ...prev]);
