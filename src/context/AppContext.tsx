@@ -2,7 +2,7 @@ import { useState, createContext, useContext, ReactNode, useEffect, useCallback 
 import { Task, Project, TimeEntry, AutomationRule, Activity, Note, ThemeMode, TeamMember, TaskAttachment, Subtask } from '@/data/types';
 import { tasks as initialTasks, projects as initialProjects, timeEntries as initialTimeEntries, automationRules as initialRules, activities as initialActivities, teamMembers as initialTeamMembers, notes as initialNotes } from '@/data/mockData';
 import { deleteAttachmentBlob, getAttachmentBlob, putAttachmentBlob } from '@/lib/attachmentsDb';
-import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchCurrentUser, fetchInitialBoardData, listActivitiesApi, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
+import { apiCreateProject, apiCreateTask, apiDeleteProject, apiDeleteTask, apiUpdateProject, apiUpdateTask, createNoteApi, deleteNoteApi, fetchInitialBoardData, listActivitiesApi, listAutomationRulesApi, listNotesApi, updateNoteApi } from '@/lib/api';
 import { logout as apiLogout, getCurrentUser} from '@/api/auth';
 import * as timeEntriesApi from '@/api/timeEntries';
 import { toast } from 'sonner';
@@ -217,12 +217,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const hasApi = typeof import.meta !== 'undefined' && !!import.meta.env.VITE_API_URL;
     if (!hasApi) return;
     (async () => {
-      // 1) Check auth first - skip protected API calls if not authenticated (avoids 401)
-      const authUser = await getCurrentUser();
-      if (!authUser) {
-        // No valid session - use local data, avoid 401 on projects/tasks
-        return;
+      // 1) Fetch current user from backend (single source; avoids duplicate requests)
+      // getCurrentUser() now handles token bootstrap via /api/auth/token if needed.
+      let authUser: { name: string; email: string; role: string; avatar?: string; id: string } | null = null;
+      try {
+        authUser = await getCurrentUser();
+      } catch {
+        // e.g. network error
       }
+      if (!authUser) return;
 
       setUser({
         name: authUser.name,
@@ -230,6 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         role: authUser.role,
         avatar: authUser.avatar,
       });
+      setCurrentUserId(authUser.id ?? '1');
 
       try {
         const { projects: apiProjects, tasks: apiTasks, users } = await fetchInitialBoardData();
@@ -256,20 +260,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         // Keep local rules if API is unavailable
-      }
-
-      try {
-        // 2) Hydrate current user from backend /auth/me (if logged in via Microsoft)
-        const me = await fetchCurrentUser();
-        setUser({
-          name: me.displayName,
-          email: me.email,
-          role: me.role,
-          avatar: me.avatarUrl,
-        });
-        setCurrentUserId(me.userId ?? '1');
-      } catch {
-        // Ignore if not logged in; user stays null
       }
 
       try {

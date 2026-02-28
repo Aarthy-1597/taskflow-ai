@@ -41,6 +41,9 @@ const App = () => {
         if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token);
       } catch (_) {}
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      // Always hard-redirect once token is saved so AppContext boots with token present.
+      // This avoids race conditions where /api/auth/me runs before token is written.
+      window.location.replace(window.location.origin + "/dashboard");
     }
   }, []);
 

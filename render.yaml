@@ -1,0 +1,12 @@
+# Render Blueprint: SPA so /dashboard and all client routes serve index.html
+# See https://docs.render.com/redirects-rewrites
+services:
+  - type: web
+    runtime: static
+    name: taskflow-web
+    buildCommand: npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

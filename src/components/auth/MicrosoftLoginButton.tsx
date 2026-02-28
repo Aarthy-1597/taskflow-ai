@@ -1,10 +1,9 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { AUTH_ENDPOINTS } from '@/lib/authApi';
 
-const MICROSOFT_LOGIN_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL
-    : '') + '/auth/microsoft/login';
+// Same base as /api/auth/me (e.g. https://hackathon-7-v2y5.onrender.com/api/auth/microsoft/login)
+const MICROSOFT_LOGIN_URL = AUTH_ENDPOINTS.login;
 
 interface MicrosoftLoginButtonProps {
   onClick?: () => void;

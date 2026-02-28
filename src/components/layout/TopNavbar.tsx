@@ -48,6 +48,13 @@ export function TopNavbar() {
   const Icon = themeIcons[theme];
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Sync local profile state when user is loaded from /api/auth/me
+  useEffect(() => {
+    setDisplayName(user?.name || '');
+    setEmail(user?.email || '');
+    setAvatarPreview(user?.avatar);
+  }, [user?.name, user?.email, user?.avatar]);
+
   useEffect(() => {
     let cancelled = false;
     void listNotificationsApi().then((items) => {

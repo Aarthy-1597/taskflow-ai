@@ -12,6 +12,7 @@ export interface AuthMeResponse {
   profileImageUrl?: string;
   photoUrl?: string;
   avatar?: string;
+  avatarUrl?: string;
   picture?: string;
   /** JWT or access token - stored for Bearer auth on subsequent requests */
   token?: string;
@@ -86,13 +87,36 @@ export async function logout(): Promise<void> {
 /** GET /api/auth/me - Fetch current user from backend */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    const headers: Record<string, string> = {};
-    let token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('appToken') : null;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    let authHeaders: Record<string, string> = { ...getAuthHeaders() };
+    // If token is not in storage (e.g. fresh tab), try cookie -> /api/auth/token bootstrap.
+    if (!authHeaders.Authorization) {
+      try {
+        const tokenRes = await fetch(AUTH_ENDPOINTS.token, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (tokenRes.ok) {
+          const tokenData = (await tokenRes.json()) as { token?: string; access_token?: string };
+          const freshToken = tokenData.token ?? tokenData.access_token;
+          if (freshToken) {
+            const { setAuthToken } = await import('@/lib/authToken');
+            setAuthToken(freshToken);
+            authHeaders = { Authorization: `Bearer ${freshToken}` };
+          }
+        }
+      } catch {
+        // Ignore bootstrap token errors; /me below will return null if unauthorized.
+      }
+    }
+    // If we still don't have an Authorization token, user is not logged in yet.
+    // Do not call /api/auth/me to avoid noisy 401s on login page/network tab.
+    if (!authHeaders.Authorization) return null;
+
     const res = await fetch(AUTH_ENDPOINTS.me, {
       credentials: 'include',
       cache: 'no-store',
-      headers: { ...getAuthHeaders() },
+      headers: authHeaders,
     });
     if (!res.ok) {
       if (res.status === 401 || res.status === 404) return null;
@@ -100,12 +124,12 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
     const data = (await res.json()) as AuthMeResponse;
     if (!data.userId || !data.email) return null;
-     token = data.token ?? data.access_token;
+    const token = data.token ?? data.access_token;
     if (token) {
       const { setAuthToken } = await import('@/lib/authToken');
       setAuthToken(token);
     }
-    const avatar = data.profileImageUrl || data.photoUrl || data.avatar || data.picture;
+    const avatar = data.profileImageUrl || data.photoUrl || data.avatar || data.avatarUrl || data.picture;
     return {
       id: data.userId,
       name: data.displayName || data.email.split('@')[0],

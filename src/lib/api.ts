@@ -1,6 +1,15 @@
 import type { Activity, AutomationRule, Note, Project, Task, TeamMember } from "@/data/types";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const RAW_API_URL = import.meta.env.VITE_API_URL ?? "";
+const IS_LOCAL_API = /localhost|127\.0\.0\.1/.test(RAW_API_URL);
+const IS_LOCAL_HOST =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+// Safety fallback for misconfigured production builds (e.g. VITE_API_URL=localhost on Render).
+const API_URL =
+  !IS_LOCAL_HOST && IS_LOCAL_API
+    ? "https://hackathon-7-v2y5.onrender.com"
+    : RAW_API_URL;
 const AUTH_TOKEN_KEY = "appToken";
 
 function toProjectModel(p: any): Project {
