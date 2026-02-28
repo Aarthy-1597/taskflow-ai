@@ -17,7 +17,8 @@ interface Props {
 }
 
 export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
-  const { tasks, addTimeEntry, updateTimeEntry, currentUserId } = useApp();
+  const { tasks, projects, addTimeEntry, updateTimeEntry, currentUserId } = useApp();
+  const [projectId, setProjectId] = useState('');
   const [taskId, setTaskId] = useState(entry?.taskId ?? '');
   const [hours, setHours] = useState(entry ? String(entry.hours) : '');
   const [date, setDate] = useState(entry?.date ?? new Date().toISOString().slice(0, 10));
@@ -25,27 +26,44 @@ export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
   const [billable, setBillable] = useState(entry?.billable ?? true);
 
   const isEdit = !!entry;
+  const tasksInProject = projectId ? tasks.filter(t => t.projectId === projectId) : [];
+
+  const handleProjectChange = (id: string) => {
+    setProjectId(id);
+    setTaskId(prev => {
+      if (!id) return '';
+      const task = tasks.find(t => t.id === prev);
+      return task?.projectId === id ? prev : '';
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
     if (entry) {
+      const task = tasks.find(t => t.id === entry.taskId);
+      setProjectId(task?.projectId ?? '');
       setTaskId(entry.taskId);
       setHours(String(entry.hours));
       setDate(entry.date);
       setDescription(entry.description);
       setBillable(entry.billable);
     } else {
+      setProjectId('');
       setTaskId('');
       setHours('');
       setDate(new Date().toISOString().slice(0, 10));
       setDescription('');
       setBillable(true);
     }
-  }, [entry, open]);
+  }, [entry, open, tasks]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const h = parseFloat(hours);
+    if (!projectId) {
+      toast.error('Please select a project');
+      return;
+    }
     if (!taskId) {
       toast.error('Please select a task');
       return;
@@ -63,7 +81,7 @@ export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
       updateTimeEntry(entry.id, { taskId, hours: h, date, description, billable });
       toast.success('Time entry updated');
     } else {
-      addTimeEntry({ taskId, userId: currentUserId, hours: h, date, description, billable });
+      addTimeEntry({ taskId, userId: currentUserId, projectId, hours: h, date, description, billable });
       toast.success('Time entry added');
     }
     onOpenChange(false);
@@ -71,6 +89,7 @@ export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
   };
 
   const resetForm = () => {
+    setProjectId('');
     setTaskId('');
     setHours('');
     setDate(new Date().toISOString().slice(0, 10));
@@ -83,8 +102,6 @@ export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
     onOpenChange(o);
   };
 
-  const projectTasks = tasks;
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -93,13 +110,26 @@ export function TimeEntryForm({ open, onOpenChange, entry }: Props) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label className="text-xs">Task</Label>
-            <Select value={taskId} onValueChange={setTaskId} required>
+            <Label className="text-xs">Project</Label>
+            <Select value={projectId} onValueChange={handleProjectChange} required>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select task" />
+                <SelectValue placeholder="Select project" />
               </SelectTrigger>
               <SelectContent>
-                {projectTasks.map(t => (
+                {projects.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Task</Label>
+            <Select value={taskId} onValueChange={setTaskId} required disabled={!projectId}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder={projectId ? 'Select task' : 'Select project first'} />
+              </SelectTrigger>
+              <SelectContent>
+                {tasksInProject.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
                 ))}
               </SelectContent>

@@ -7,9 +7,10 @@ interface TimeReportsProps {
   filteredEntries: { taskId: string; userId: string; hours: number; date: string; billable: boolean }[];
   tasks: { id: string; projectId: string }[];
   projects: { id: string; name: string }[];
+  canViewBilling?: boolean;
 }
 
-export function TimeReports({ filteredEntries, tasks, projects }: TimeReportsProps) {
+export function TimeReports({ filteredEntries, tasks, projects, canViewBilling = false }: TimeReportsProps) {
   const { getTeamMember } = useApp();
 
   const timeByUser = useMemo(() => {
@@ -125,42 +126,44 @@ export function TimeReports({ filteredEntries, tasks, projects }: TimeReportsPro
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <PieChart className="h-4 w-4" />
-              Billable vs Non-Billable
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {billableBreakdown.total === 0 ? (
-              <p className="text-sm text-muted-foreground">No data</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-success">Billable</span>
-                  <span className="font-display font-medium">{billableBreakdown.billable.toFixed(1)}h</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Non-Billable</span>
-                  <span className="font-display font-medium">{billableBreakdown.nonBillable.toFixed(1)}h</span>
-                </div>
-                <div className="pt-2 border-t border-border">
-                  <div className="flex h-2 rounded overflow-hidden gap-px">
-                    <div
-                      className="bg-success"
-                      style={{ width: `${(billableBreakdown.billable / billableBreakdown.total) * 100}%` }}
-                    />
-                    <div
-                      className="bg-muted"
-                      style={{ width: `${(billableBreakdown.nonBillable / billableBreakdown.total) * 100}%` }}
-                    />
+        {canViewBilling && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <PieChart className="h-4 w-4" />
+                Billable vs Non-Billable
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {billableBreakdown.total === 0 ? (
+                <p className="text-sm text-muted-foreground">No data</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-success">Billable</span>
+                    <span className="font-display font-medium">{billableBreakdown.billable.toFixed(1)}h</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Non-Billable</span>
+                    <span className="font-display font-medium">{billableBreakdown.nonBillable.toFixed(1)}h</span>
+                  </div>
+                  <div className="pt-2 border-t border-border">
+                    <div className="flex h-2 rounded overflow-hidden gap-px">
+                      <div
+                        className="bg-success"
+                        style={{ width: `${(billableBreakdown.billable / billableBreakdown.total) * 100}%` }}
+                      />
+                      <div
+                        className="bg-muted"
+                        style={{ width: `${(billableBreakdown.nonBillable / billableBreakdown.total) * 100}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-2">

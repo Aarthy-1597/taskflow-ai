@@ -4,3 +4,10 @@ import { twMerge } from "tailwind-merge";
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+/** Only Admins and Project Managers can view billing totals and generate invoices */
+export function canViewBilling(role?: string | null): boolean {
+  if (!role) return false;
+  const r = role.toLowerCase().replace(/\s+/g, '_');
+  return r === 'admin' || r === 'project_manager';
+}

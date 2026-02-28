@@ -5,9 +5,11 @@ import { UserAvatar } from '@/components/shared/UserAvatar';
 import { PriorityBadge } from '@/components/shared/PriorityBadge';
 import { CheckCircle2, Clock, AlertTriangle, TrendingUp, Activity as ActivityIcon, BarChart3, Users, Timer } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
+import { canViewBilling } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { tasks, projects, activities, timeEntries, getTeamMember, user, teamMembers } = useApp();
+  const showBilling = canViewBilling(user?.role);
 
   const myTasks = tasks.filter(t => t.assignees.includes('1'));
   const overdueTasks = tasks.filter(t => new Date(t.dueDate) < new Date() && t.status !== 'done');
@@ -154,27 +156,35 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* Time Breakdown */}
+          {/* Time Breakdown - billable/non-billable only visible to Admins & Project Managers */}
           <div className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-display font-semibold text-card-foreground mb-3 flex items-center gap-2">
               <Timer className="h-4 w-4" /> Time Breakdown
             </h2>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={pieColors[i]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12, background: 'hsl(230, 22%, 10%)', border: '1px solid hsl(230, 20%, 16%)', borderRadius: 8, color: 'hsl(230, 10%, 92%)' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-4 text-[10px]">
-              <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-success" />Billable: {billable}h</span>
-              <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-muted-foreground" />Internal: {nonBillable}h</span>
-            </div>
+            {showBilling ? (
+              <>
+                <div className="flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={pieColors[i]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 12, background: 'hsl(230, 22%, 10%)', border: '1px solid hsl(230, 20%, 16%)', borderRadius: 8, color: 'hsl(230, 10%, 92%)' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-center gap-4 text-[10px]">
+                  <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-success" />Billable: {billable}h</span>
+                  <span className="flex items-center gap-1"><div className="h-2 w-2 rounded-full bg-muted-foreground" />Internal: {nonBillable}h</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-[180px]">
+                <p className="text-sm text-muted-foreground">Total: {(billable + nonBillable).toFixed(1)}h</p>
+              </div>
+            )}
           </div>
         </div>
 
