@@ -49,7 +49,7 @@ import {
 const PAGE_SIZES = [10, 25, 50, 100];
 
 export default function TimePage() {
-  const { timeEntries, tasks, projects, getTeamMember, deleteTimeEntry, refreshTimeEntries, user } = useApp();
+  const { timeEntries, tasks, projects, getTeamMember, deleteTimeEntry, refreshTimeEntries, user, currentUserId } = useApp();
   const showBilling = canViewBilling(user?.role);
   const [formOpen, setFormOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<TimeEntry | null>(null);
@@ -170,6 +170,21 @@ export default function TimePage() {
           )}
         </div>
 
+        <div className="flex flex-wrap items-end gap-3">
+          <TimesheetFilters
+            userFilter={userFilter}
+            projectFilter={projectFilter}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            projects={projects}
+            onUserChange={setUserFilter}
+            onProjectChange={setProjectFilter}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            label="Filters"
+          />
+        </div>
+
         <Tabs defaultValue="timesheet" className="space-y-4">
           <TabsList>
             <TabsTrigger value="timesheet">Timesheet</TabsTrigger>
@@ -178,17 +193,6 @@ export default function TimePage() {
 
           <TabsContent value="timesheet" className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <TimesheetFilters
-                userFilter={userFilter}
-                projectFilter={projectFilter}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                projects={projects}
-                onUserChange={setUserFilter}
-                onProjectChange={setProjectFilter}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-              />
               {filteredEntries.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Rows per page</span>
@@ -326,6 +330,11 @@ export default function TimePage() {
               tasks={tasks}
               projects={projects}
               canViewBilling={showBilling}
+              userFilter={userFilter}
+              projectFilter={projectFilter}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              currentUserId={currentUserId}
             />
           </TabsContent>
         </Tabs>

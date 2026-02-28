@@ -8,17 +8,6 @@ import { Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import * as timeEntriesApi from '@/api/timeEntries';
 
-const ACTIVE_TIMER_STORAGE_KEY = 'taskflow-active-timer';
-
-interface StoredActiveTimer {
-  taskId: string;
-  projectId: string;
-  description: string;
-  billable: boolean;
-  startedAt: string;
-  userId: string;
-}
-
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -34,72 +23,50 @@ export function TimeTracker() {
   const [description, setDescription] = useState('');
   const [billable, setBillable] = useState(true);
   const [elapsed, setElapsed] = useState(0);
-  const [usingApiTimer, setUsingApiTimer] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const tasksInProject = projectId
     ? tasks.filter(t => t.projectId === projectId)
     : [];
 
-  // Restore active timer on mount (API first, then localStorage fallback)
+  const [timerStart, setTimerStart] = useState<string | null>(null);
+
+  // Restore active timer from server (GET /api/time-entries/?user_id=xxx → find timer_running: true)
   useEffect(() => {
     if (!currentUserId) return;
-    let restored = false;
-
-    const restoreFromApi = async () => {
+    (async () => {
       try {
         const active = await timeEntriesApi.getActiveTimer(currentUserId);
-        if (active?.started_at) {
-          const startedAt = new Date(active.started_at).getTime();
-          const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+        if (active?.timer_start) {
           setProjectId(active.project_id ?? '');
           setTaskId(active.task_id);
           setDescription(active.description ?? '');
           setBillable(active.billable ?? true);
-          setElapsed(elapsedSec);
-          setUsingApiTimer(true);
+          setTimerStart(active.timer_start);
           setRunning(true);
-          restored = true;
         }
       } catch {
         /* API not available */
       }
-    };
-
-    const restoreFromStorage = () => {
-      if (restored) return;
-      try {
-        const raw = localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY);
-        if (!raw) return;
-        const stored: StoredActiveTimer = JSON.parse(raw);
-        if (stored.userId !== currentUserId) return;
-        const startedAt = new Date(stored.startedAt).getTime();
-        const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
-        setProjectId(stored.projectId);
-        setTaskId(stored.taskId);
-        setDescription(stored.description);
-        setBillable(stored.billable);
-        setElapsed(elapsedSec);
-        setUsingApiTimer(false);
-        setRunning(true);
-      } catch {
-        localStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
-      }
-    };
-
-    restoreFromApi().then(restoreFromStorage);
+    })();
   }, [currentUserId]);
 
+  // Live clock: recalc elapsed from timer_start every second (server is source of truth)
   useEffect(() => {
-    if (running) {
-      intervalRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+    if (running && timerStart) {
+      const tick = () => {
+        const elapsedSec = Math.floor((Date.now() - new Date(timerStart).getTime()) / 1000);
+        setElapsed(elapsedSec);
+      };
+      tick();
+      intervalRef.current = setInterval(tick, 1000);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [running]);
+  }, [running, timerStart]);
 
   const handleProjectChange = (id: string) => {
     setProjectId(id);
@@ -124,67 +91,34 @@ export function TimeTracker() {
       const res = await timeEntriesApi.startTimer({
         task_id: taskId,
         user_id: currentUserId,
-        project_id: task?.projectId ?? '',
+        project_id: task?.projectId ?? projectId,
         description: description || 'Timer',
         billable,
       });
-      setUsingApiTimer(true);
+      const startedAt = res?.started_at ?? res?.timer_start ?? new Date().toISOString();
+      setTimerStart(startedAt);
       setRunning(true);
-      const startedAt = res?.started_at ?? new Date().toISOString();
-      const stored: StoredActiveTimer = {
-        taskId,
-        projectId: task?.projectId ?? projectId,
-        description: description || 'Timer',
-        billable,
-        startedAt,
-        userId: currentUserId,
-      };
-      localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(stored));
-    } catch {
-      setUsingApiTimer(false);
-      setRunning(true);
-      const stored: StoredActiveTimer = {
-        taskId,
-        projectId: task?.projectId ?? projectId,
-        description: description || 'Timer',
-        billable,
-        startedAt: new Date().toISOString(),
-        userId: currentUserId,
-      };
-      localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(stored));
+    } catch (err) {
+      console.warn('Start timer API failed:', err);
+      toast.error('Failed to start timer. Ensure the Time API is running on port 8000.');
     }
   };
 
   const handleStop = async () => {
     if (!running) return;
     setRunning(false);
-    localStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
-    if (usingApiTimer) {
-      try {
-        const entry = await timeEntriesApi.stopTimer({
-          task_id: taskId,
-          user_id: currentUserId,
-          description: description || 'Timer',
-          billable,
-        });
-        addTimeEntry(entry);
-        toast.success(`Logged ${entry.hours.toFixed(2)}h`);
-      } catch {
-        toast.error('Failed to save timer. Logging locally.');
-        const hours = Math.round(elapsed / 36) / 100;
-        if (hours > 0) {
-          addTimeEntry({
-            taskId,
-            userId: currentUserId,
-            hours,
-            date: new Date().toISOString().slice(0, 10),
-            description: description || 'Timer',
-            billable,
-          });
-          toast.success(`Logged ${hours.toFixed(2)}h`);
-        }
-      }
-    } else {
+    setTimerStart(null);
+    try {
+      const entry = await timeEntriesApi.stopTimer({
+        task_id: taskId,
+        user_id: currentUserId,
+        description: description || 'Timer',
+        billable,
+      });
+      addTimeEntry(entry);
+      toast.success(`Logged ${entry.hours.toFixed(2)}h`);
+    } catch {
+      toast.error('Failed to save timer. Backend calculates hours from timer_start.');
       const hours = Math.round(elapsed / 36) / 100;
       if (hours > 0) {
         addTimeEntry({
@@ -195,7 +129,7 @@ export function TimeTracker() {
           description: description || 'Timer',
           billable,
         });
-        toast.success(`Logged ${hours.toFixed(2)}h`);
+        toast.success(`Logged ${hours.toFixed(2)}h (local fallback)`);
       }
     }
     setElapsed(0);

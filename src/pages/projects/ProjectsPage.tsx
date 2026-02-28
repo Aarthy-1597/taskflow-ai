@@ -13,10 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Project, ProjectStatus } from '@/data/types';
+import { canManageProjects } from '@/lib/utils';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { projects, teamMembers, createProject, updateProject, deleteProject, setSelectedProjectId } = useApp();
+  const { projects, teamMembers, createProject, updateProject, deleteProject, setSelectedProjectId, user } = useApp();
+  const canManage = canManageProjects(user?.role);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
 
@@ -64,7 +66,7 @@ export default function ProjectsPage() {
   }, [teamMembers]);
 
   const handleSave = () => {
-    if (!canSave) return;
+    if (!canSave || !canManage) return;
 
     const payload = {
       name: name.trim(),
@@ -86,7 +88,7 @@ export default function ProjectsPage() {
   };
 
   const handleDelete = () => {
-    if (!editing) return;
+    if (!editing || !canManage) return;
     deleteProject(editing.id);
     setOpen(false);
   };
@@ -100,10 +102,12 @@ export default function ProjectsPage() {
               <h1 className="text-2xl font-display font-bold text-foreground">Projects</h1>
               <p className="text-sm text-muted-foreground mt-1">Create and manage your team’s projects</p>
             </div>
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Button>
+            {canManage && (
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Project
+              </Button>
+            )}
           </div>
         </motion.div>
 
@@ -133,14 +137,16 @@ export default function ProjectsPage() {
                   }`}>
                     {project.status === 'active' ? 'Active' : project.status === 'on_hold' ? 'On Hold' : 'Done'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEdit(project); }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                    title="Edit project"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEdit(project); }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                      title="Edit project"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -255,7 +261,7 @@ export default function ProjectsPage() {
 
           <DialogFooter className="gap-2 sm:gap-0">
             <div className="flex items-center gap-2 mr-auto">
-              {editing && (
+              {editing && canManage && (
                 <Button variant="destructive" onClick={handleDelete} className="gap-2">
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -263,7 +269,7 @@ export default function ProjectsPage() {
               )}
             </div>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!canSave}>Save</Button>
+            {canManage && <Button onClick={handleSave} disabled={!canSave}>Save</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

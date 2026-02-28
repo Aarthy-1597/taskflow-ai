@@ -83,9 +83,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!API_URL) {
     throw new Error("VITE_API_URL is not configured");
   }
+  const { getAuthHeaders } = await import("@/lib/authToken");
+  const authHeaders = getAuthHeaders();
   const res = await fetch(`${API_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders,
       ...(init?.headers || {}),
     },
     credentials: "include",

@@ -14,17 +14,20 @@ interface Props {
   onProjectChange: (v: string) => void;
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
+  /** Label for the filter section (default: "Filters") */
+  label?: string;
 }
 
 export function TimesheetFilters({
   userFilter, projectFilter, dateFrom, dateTo, projects,
   onUserChange, onProjectChange, onDateFromChange, onDateToChange,
+  label = 'Filters',
 }: Props) {
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Filter className="h-3.5 w-3.5" />
-        <span className="font-medium">Timesheet</span>
+        <span className="font-medium">{label}</span>
       </div>
       <div>
         <Label className="text-xs sr-only">User</Label>
